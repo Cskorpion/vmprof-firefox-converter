@@ -1,0 +1,148 @@
+{
+
+  "meta": {
+    "version": 5,
+    "interval": 0.4,
+    "stackwalk": 1,
+    "debug": 1,
+    "startTime": 1477063882018.4387,
+    "shutdownTime": null,
+    "processType": 0,
+    "platform": "Macintosh",
+    "oscpu": "Intel Mac OS X 10.12",
+    "misc": "rv:52.0",
+    "abi": "x86_64-gcc3",
+    "toolkit": "cocoa",
+    "product": "Firefox",
+    "updateChannel": "nightly",
+    "extensions": {
+      "schema": {
+        "id": 0,
+        "name": 1,
+        "baseURL": 2
+      },
+      "data": [
+        ["geckoprofiler@mozilla.com", "Gecko Profiler", "moz-extension://bf3bb73c-919c-4fef-95c4-070a19fdaf85/"]
+      ]
+    }
+  },
+
+
+  "pages": [
+    {
+      "tabID": 10,
+      "innerWindowID": 2,
+      "url": "https://profiler.firefox.com",
+      "embedderInnerWindowID": 0
+    }
+  ],
+
+  "libs": [
+    {
+      "start": 4461400064,
+      "end": 4461424640,
+      "offset": 0,
+      "name": "firefox",
+      "path": "/Applications/FirefoxNightly.app/Contents/MacOS/firefox",
+      "debugName": "firefox",
+      "debugPath": "/Applications/FirefoxNightly.app/Contents/MacOS/firefox",
+      "breakpadId": "E54D3AF274383256B9F6144F83F3F7510"
+    }
+  ],
+
+  "pausedRanges": [
+    {
+      "startTime": 6547.127094,
+      "endTime": 6659.796075,
+      "reason": "collecting"
+    } 
+  ],
+
+
+  "threads": [
+    {
+
+
+      "name": "GeckoMain", 
+
+      "processType": "default",
+
+      "processName": "Parent Process",
+
+      "tid": 7442229,
+
+      "pid": 51580,
+
+      "registerTime": 23.841461000000002,
+
+      "unregisterTime": null,
+
+      "markers": {
+        "schema": {
+          "name": 0,
+          "time": 1,
+          "data": 2
+        },
+        "data": [
+        
+        ]
+      },
+
+      "samples": {
+        "schema": {
+          "stack": 0,
+          "time": 1,
+          "eventDelay": 2
+        },
+        "data": [
+          [
+            0,             
+            37067.409299, 
+            1.437998                    
+          ]
+        ]
+      },
+
+      "frameTable": {
+        "schema": {
+          "location": 0,
+          "relevantForJS": 1,
+          "innerWindowID": 2,
+          "implementation": 3,
+          "line": 4,
+          "column": 5
+        },
+        "data": [
+          [
+            3,   
+            false, 
+            2,      
+            40,   
+            1536      
+          ]
+        ]
+      },
+
+      "stackTable": {
+        "schema": {
+          "frame": 0,
+          "prefix": 1
+        },
+        "data": [
+          [
+            0,   
+            null 
+          ]
+        ]
+      },
+
+      "stringTable": ["(root)", "0x109eba3b4", "Events::ProcessGeckoEvents", "Hallo Welt"]
+
+    }
+    
+  ],
+ 
+  "processes": [
+ 
+  ]
+}
