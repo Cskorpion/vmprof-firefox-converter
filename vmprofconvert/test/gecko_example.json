@@ -1,115 +1,85 @@
 {
-
   "meta": {
-    "version": 5,
-    "interval": 0.4,
-    "stackwalk": 1,
-    "debug": 1,
-    "startTime": 1477063882018.4387,
-    "shutdownTime": null,
-    "processType": 0,
-    "platform": "Macintosh",
-    "oscpu": "Intel Mac OS X 10.12",
-    "abi": "x86_64-gcc3"
-
+      "version": 5,
+      "interval": 0.4,
+      "stackwalk": 1,
+      "debug": 1,
+      "startTime": 1477063882018.4387,
+      "shutdownTime": null,
+      "processType": 0,
+      "platform": "Macintosh",
+      "oscpu": "Intel Mac OS X 10.12",
+      "abi": "x86_64-gcc3"
   },
-
-
-  "pages": [
-
-  ],
-
-  "libs": [
-
-  ],
-
-  "pausedRanges": [
-
-  ],
-
-
   "threads": [
-    {
-      "name": "GeckoMain", 
-
-      "processType": "default",
-
-      "processName": "Parent Process",
-
-      "tid": 7442229,
-
-      "pid": 51580,
-
-      "registerTime": 23.841461000000002,
-
-      "unregisterTime": null,
-
-      "markers": {
-        "schema": {
-          "name": 0,
-          "time": 1,
-          "data": 2
-        },
-        "data": [
-        
-        ]
-      },
-
-      "samples": {
-        "schema": {
-          "stack": 0,
-          "time": 1,
-          "eventDelay": 2
-        },
-        "data": [
-          [
-            0,             
-            37067.409299, 
-            1.437998                    
+      {
+          "name": "GeckoMain",
+          "processType": "default",
+          "processName": "Parent Process",
+          "tid": 7442229,
+          "pid": 51580,
+          "registerTime": 23.841461000000002,
+          "unregisterTime": null,
+          "markers": {
+              "schema": {
+                  "name": 0,
+                  "time": 1,
+                  "data": 2
+              },
+              "data": []
+          },
+          "samples": {
+              "schema": {
+                  "stack": 0,
+                  "time": 1,
+                  "eventDelay": 2
+              },
+              "data": [
+                  [
+                      0,
+                      37067.409299,
+                      1.437998
+                  ]
+              ]
+          },
+          "frameTable": {
+              "schema": {
+                  "location": 0,
+                  "relevantForJS": 1,
+                  "innerWindowID": 2,
+                  "implementation": 3,
+                  "line": 4,
+                  "column": 5
+              },
+              "data": [
+                  [
+                      3,
+                      false,
+                      2,
+                      40,
+                      1536
+                  ]
+              ]
+          },
+          "stackTable": {
+              "schema": {
+                  "frame": 0,
+                  "prefix": 1
+              },
+              "data": [
+                  [
+                      0,
+                      null
+                  ]
+              ]
+          },
+          "stringTable": [
+              "(root)",
+              "0x109eba3b4",
+              "Events::ProcessGeckoEvents",
+              "Hallo Welt"
           ]
-        ]
-      },
-
-      "frameTable": {
-        "schema": {
-          "location": 0,
-          "relevantForJS": 1,
-          "innerWindowID": 2,
-          "implementation": 3,
-          "line": 4,
-          "column": 5
-        },
-        "data": [
-          [
-            3,   
-            false, 
-            2,      
-            40,   
-            1536      
-          ]
-        ]
-      },
-
-      "stackTable": {
-        "schema": {
-          "frame": 0,
-          "prefix": 1
-        },
-        "data": [
-          [
-            0,   
-            null 
-          ]
-        ]
-      },
-
-      "stringTable": ["(root)", "0x109eba3b4", "Events::ProcessGeckoEvents", "Hallo Welt"]
-
-    }
-    
+      }
   ],
- 
-  "processes": [
- 
-  ]
+  "processes": []
 }
