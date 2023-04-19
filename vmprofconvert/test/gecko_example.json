@@ -10,59 +10,26 @@
     "processType": 0,
     "platform": "Macintosh",
     "oscpu": "Intel Mac OS X 10.12",
-    "misc": "rv:52.0",
-    "abi": "x86_64-gcc3",
-    "toolkit": "cocoa",
-    "product": "Firefox",
-    "updateChannel": "nightly",
-    "extensions": {
-      "schema": {
-        "id": 0,
-        "name": 1,
-        "baseURL": 2
-      },
-      "data": [
-        ["geckoprofiler@mozilla.com", "Gecko Profiler", "moz-extension://bf3bb73c-919c-4fef-95c4-070a19fdaf85/"]
-      ]
-    }
+    "abi": "x86_64-gcc3"
+
   },
 
 
   "pages": [
-    {
-      "tabID": 10,
-      "innerWindowID": 2,
-      "url": "https://profiler.firefox.com",
-      "embedderInnerWindowID": 0
-    }
+
   ],
 
   "libs": [
-    {
-      "start": 4461400064,
-      "end": 4461424640,
-      "offset": 0,
-      "name": "firefox",
-      "path": "/Applications/FirefoxNightly.app/Contents/MacOS/firefox",
-      "debugName": "firefox",
-      "debugPath": "/Applications/FirefoxNightly.app/Contents/MacOS/firefox",
-      "breakpadId": "E54D3AF274383256B9F6144F83F3F7510"
-    }
+
   ],
 
   "pausedRanges": [
-    {
-      "startTime": 6547.127094,
-      "endTime": 6659.796075,
-      "reason": "collecting"
-    } 
+
   ],
 
 
   "threads": [
     {
-
-
       "name": "GeckoMain", 
 
       "processType": "default",
