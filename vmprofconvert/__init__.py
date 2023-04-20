@@ -11,8 +11,11 @@ class Converter:
     def __init__(self):
         self.stringtable = []
         self.stringtable_positions = {}
-        self.stacktable = [] #list of [frameindex, stacktableindex_or_None]
+        self.stacktable = [] # list of [frameindex, stacktableindex_or_None]
         self.stacktable_positions = {}
+        self.frametable = []
+        self.frametable_positions = {}# key is string
+
 
     def add_string(self, string):
         if string in self.stringtable_positions:
@@ -39,4 +42,13 @@ class Converter:
                 self.stacktable.append([top, rest_index])
                 self.stacktable_positions[key] = result
                 return result
-    
+            
+    def add_frame(self, string):
+        if string in self.frametable_positions:
+            return self.frametable_positions[string]
+        else:
+            stringtable_index = self.add_string(string)
+            frametable_index = len(self.frametable)
+            self.frametable.append(stringtable_index)
+            self.frametable_positions[string] = frametable_index
+            return frametable_index

@@ -26,3 +26,12 @@ def test_stacktable():
     stackindex2 = c.add_stack([1,2,3,4])
     assert stackindex2 == stackindex1 + 1
 
+def test_frametable():
+    c = Converter()
+    frameindex0 = c.add_frame("duck")
+    frameindex1 = c.add_frame("duck")
+    assert frameindex0 == frameindex1 == 0
+    frameindex2 = c.add_frame("goose")
+    assert frameindex2 == frameindex1 + 1
+    assert c.frametable == [0,1]
+    assert c.stringtable == ["duck", "goose"]
