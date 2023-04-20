@@ -11,6 +11,9 @@
       "oscpu": "Intel Mac OS X 10.12",
       "abi": "x86_64-gcc3"
   },
+  "pages": [],
+  "libs": [],
+  "pausedRanges": [],
   "threads": [
       {
           "name": "GeckoMain",
@@ -47,17 +50,14 @@
                   "location": 0,
                   "relevantForJS": 1,
                   "innerWindowID": 2,
-                  "implementation": 3,
-                  "line": 4,
-                  "column": 5
+                  "implementation": 3
               },
               "data": [
                   [
                       3,
                       false,
                       2,
-                      40,
-                      1536
+                      1
                   ]
               ]
           },
