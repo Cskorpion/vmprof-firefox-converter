@@ -3,9 +3,14 @@ import vmprof
 def convert(path):
     stats = vmprof.read_profile(path)
     c = Converter()
-    for sample in stats.profiles:
-        pass
-    return stats
+    c.walk_samples(stats.profiles)
+    return c# return converter instance for testing
+    
+def convert_vmprof(path):
+    c = Converter()
+    stats = vmprof.read_profile(path)
+    c.walk_samples(stats.profiles)
+    return c# return converter instance for testing
 
 class Converter:
     def __init__(self):
@@ -56,3 +61,15 @@ class Converter:
     
     def add_sample(self, stackindex, time, eventdelay):
         self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
+
+    def walk_samples(self, samples):
+        #samples is list of tuple ([stack], count, threadid, memory_in_kb)
+        dummyeventdelay = 7
+        for i, sample in enumerate(samples):
+            frames = []
+            stack_info, _, tid, memory = sample
+            stack_height = int(len(stack_info)/2)
+            for j in range(stack_height):
+                frames.append(self.add_frame(stack_info[2 * j]))
+            stackindex = self.add_stack(frames)
+            self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample form vmprof
