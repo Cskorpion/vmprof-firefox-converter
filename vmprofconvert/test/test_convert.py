@@ -35,3 +35,10 @@ def test_frametable():
     assert frameindex2 == frameindex1 + 1
     assert c.frametable == [0,1]
     assert c.stringtable == ["duck", "goose"]
+
+def test_sampleslist():
+    c = Converter()
+    c.add_sample(0, 7, 3)# samples with same stack
+    c.add_sample(0, 13, 3)# samples with same stack
+    c.add_sample(1, 17, 4)
+    assert c.samples == [[0, 7, 3], [0, 13, 3], [1, 17, 4]]

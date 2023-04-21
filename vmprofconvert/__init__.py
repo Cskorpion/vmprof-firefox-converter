@@ -15,6 +15,7 @@ class Converter:
         self.stacktable_positions = {}
         self.frametable = []
         self.frametable_positions = {}# key is string
+        self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 
 
     def add_string(self, string):
@@ -52,3 +53,6 @@ class Converter:
             self.frametable.append(stringtable_index)
             self.frametable_positions[string] = frametable_index
             return frametable_index
+    
+    def add_sample(self, stackindex, time, eventdelay):
+        self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
