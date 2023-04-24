@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "version": 5,
+    "intervall": 0.4,
+    "stackwalk": 1,
+    "debug": 1,
+    "startTime": 1477063882018.4387,
+    "shutdownTIme": null,
+    "processType": 0,
+    "platform": "Macintosh",
+    "oscpu": "Intel Mac OS X 10.12",
+    "abi": "x86_64-gcc3"
+  },
+  "pages": [],
+  "libs": [],
+  "pausedRanges": [],
+  "threads": [
+    {
+      "name": "GeckoMain",
+      "processType": "default",
+      "processName": "Parent Process",
+      "tid": 7442229,
+      "pid": 51580,
+      "registerTime": 23.841461000000002,
+      "unregisterTime": null,
+      "markers": {
+        "schema": {
+          "name": 0,
+          "time": 1,
+          "data": 2
+        },
+        "data": []
+      },
+      "samples": {
+        "schema": {
+          "stack": 0,
+          "time": 1,
+          "eventDelay": 2
+        },
+        "data": [
+          [
+            1,
+            0,
+            7
+          ]
+        ]
+      },
+      "frameTable": {
+        "schema": {
+          "location": 0,
+          "relevantForJS": 1,
+          "innerWindowID": 2,
+          "implementation": 3
+        },
+        "data": [
+          [
+            0,
+            false,
+            2,
+            1
+          ],
+          [
+            1,
+            false,
+            2,
+            1
+          ]
+        ]
+      },
+      "stackTable": {
+        "schema": {
+          "frame": 0,
+          "prefix": 1
+        },
+        "data": [
+          [
+            0,
+            null
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      "stringTable": [
+        "function_a",
+        "function_b"
+      ]
+    }
+  ],
+  "processes": []
+}

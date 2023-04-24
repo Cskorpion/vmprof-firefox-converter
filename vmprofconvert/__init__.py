@@ -1,4 +1,5 @@
 import vmprof
+import json
 
 def convert(path):
     stats = vmprof.read_profile(path)
@@ -72,4 +73,84 @@ class Converter:
             for j in range(stack_height):
                 frames.append(self.add_frame(stack_info[2 * j]))
             stackindex = self.add_stack(frames)
-            self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample form vmprof
+            self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
+    
+    def dumps(self):
+        gecko_profile = {}
+        gecko_profile["meta"] = self.dump_static_meta()
+        gecko_profile["pages"] = []
+        gecko_profile["libs"] = []
+        gecko_profile["pausedRanges"] = []
+        gecko_profile["threads"] = [self.dump_thread()]
+        gecko_profile["processes"] = []
+        return json.dumps(gecko_profile)
+    
+    def dump_static_meta(self):
+        static_meta = {}
+        static_meta["version"] = 5
+        static_meta["intervall"] = 0.4
+        static_meta["stackwalk"] = 1
+        static_meta["debug"] = 1
+        static_meta["startTime"] = 1477063882018.4387
+        static_meta["shutdownTIme"] = None
+        static_meta["processType"] = 0
+        static_meta["platform"] = "Macintosh"
+        static_meta["oscpu"] = "Intel Mac OS X 10.12"
+        static_meta["abi"] = "x86_64-gcc3"
+        return static_meta
+    
+    def dump_thread(self):
+        thread = {}
+        thread["name"] = "GeckoMain"
+        thread["processType"] = "default"
+        thread["processName"] = "Parent Process"
+        thread["tid"] = 7442229 # get from vmprof samples later
+        thread["pid"] = 51580
+        thread["registerTime"] = 23.841461000000002
+        thread["unregisterTime"] = None
+        thread["markers"] = { 
+            "schema": {
+                  "name": 0,
+                  "time": 1,
+                  "data": 2
+                },
+            "data": []
+        }
+        thread["samples"] = self.dump_samples()
+        thread["frameTable"] = self.dump_frametable()
+        thread["stackTable"] = self.dump_stacktable()
+        thread["stringTable"] = self.dump_stringtable()
+        return thread
+
+    def dump_samples(self):
+        samples = {}
+        samples["schema"] = {
+            "stack": 0,
+            "time": 1,
+            "eventDelay": 2
+        }
+        samples["data"] = self.samples
+        return samples
+    
+    def dump_frametable(self):
+        frametable = {}
+        frametable["schema"] = {
+            "location": 0,
+            "relevantForJS": 1,
+            "innerWindowID": 2,
+            "implementation": 3
+        }
+        frametable["data"] = [[index, False, 2, 1] for index in self.frametable]
+        return frametable
+    
+    def dump_stacktable(self):
+        stacktable = {}
+        stacktable["schema"] = {
+                "frame": 0,
+                "prefix": 1
+        }
+        stacktable["data"] = self.stacktable
+        return stacktable
+    
+    def dump_stringtable(self):
+        return self.stringtable
