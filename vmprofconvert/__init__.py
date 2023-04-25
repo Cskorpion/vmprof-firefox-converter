@@ -88,11 +88,11 @@ class Converter:
     def dump_static_meta(self):
         static_meta = {}
         static_meta["version"] = 5
-        static_meta["intervall"] = 0.4
+        static_meta["interval"] = 0.4
         static_meta["stackwalk"] = 1
         static_meta["debug"] = 1
         static_meta["startTime"] = 1477063882018.4387
-        static_meta["shutdownTIme"] = None
+        static_meta["shutdownTime"] = None
         static_meta["processType"] = 0
         static_meta["platform"] = "Macintosh"
         static_meta["oscpu"] = "Intel Mac OS X 10.12"
@@ -153,4 +153,4 @@ class Converter:
         return stacktable
     
     def dump_stringtable(self):
-        return self.stringtable
+        return [str(string) for string in self.stringtable]
