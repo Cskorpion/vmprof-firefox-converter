@@ -1,5 +1,6 @@
 import os
 import json
+import vmprof
 from vmprofconvert import convert
 from vmprofconvert import convert_vmprof
 from vmprofconvert import Converter
@@ -121,3 +122,15 @@ def test_dumps_vmprof():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert "function_a" in str(c.stringtable)
+
+def test_dump_vmprof_meta():
+    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    stats = vmprof.read_profile(path)
+    c = Converter()
+    meta = c.dump_vmprof_meta(stats)
+    assert meta["interval"] == 0.000194
+    assert meta["startTime"] == 1681890179.831
+    assert meta["shutdownTime"] == 1681890180.325
+    assert meta["platform"] == "Windows"
+    assert meta["oscpu"] == "Windows 64bit"
+    assert meta["abi"] == "cpython"# data from example.prof

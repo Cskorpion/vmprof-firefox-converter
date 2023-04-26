@@ -24,7 +24,6 @@ class Converter:
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 
-
     def add_string(self, string):
         if string in self.stringtable_positions:
             return self.stringtable_positions[string]
@@ -94,6 +93,24 @@ class Converter:
         gecko_profile["processes"] = []
         check_gecko_profile(gecko_profile)
         return json.dumps(gecko_profile)
+    
+    def dump_vmprof_meta(self, stats):
+        vmprof_meta = {}
+        vmprof_meta["version"] = 5
+        ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))# wrong if there are multiple threads
+        vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
+        vmprof_meta["stackwalk"] = 1
+        vmprof_meta["debug"] = 1
+        vmprof_meta["startTime"] = stats.start_time.timestamp()
+        vmprof_meta["shutdownTime"] = stats.end_time.timestamp()
+        vmprof_meta["processType"] = 0
+        os   = stats.getmeta("os","default os")
+        bits = stats.getmeta("bits","64")
+        osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac": "Macintosh"}# vmprof key for mac may be wrong
+        vmprof_meta["platform"] = osdict[os]
+        vmprof_meta["oscpu"] = f"{osdict[os]} {bits}bit"
+        vmprof_meta["abi"] = stats.interp # interpreter
+        return vmprof_meta
     
     def dump_static_meta(self):
         static_meta = {}
