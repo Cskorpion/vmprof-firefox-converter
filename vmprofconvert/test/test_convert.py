@@ -4,6 +4,13 @@ from vmprofconvert import convert
 from vmprofconvert import convert_vmprof
 from vmprofconvert import Converter
 
+class Dummystats():
+    def __init__(self, profiles):
+        self.profiles = profiles
+    
+    def get_addr_info(self, addr):
+        return ("py", addr, 0, "dummyfile.py")
+
 def test_example():
     path = os.path.join(os.path.dirname(__file__), "example.prof")
     result = convert(path)
@@ -65,8 +72,8 @@ def test_walksamples():
          12345, #thread id
          0 # memory usage in kb
     )
-    c.walk_samples([vmprof_like_sample0, vmprof_like_sample1])
-    assert c.stringtable == ["function_a", "function_b", "function_c"]
+    c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
+    assert c.stringtable == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
     assert c.frametable == [0, 1, 2]
     assert c.stacktable == [[0, None], [1, 0], [2, 0]]
     assert c.samples == [[1, 0, 7], [2, 1, 7]]# stackindex time dummyeventdelay = 7
@@ -98,18 +105,18 @@ def test_dumps_simple_profile():
          12345, #thread id
          0 # memory usage in kb
     )
-    c.walk_samples([vmprof_like_sample0, vmprof_like_sample1])
+    c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
     jsonstr = c.dumps()
     path = os.path.join(os.path.dirname(__file__), "example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert True
     
-def test_dunmps_vmprof():
+def test_dumps_vmprof():
     path = os.path.join(os.path.dirname(__file__), "example.prof")
     c = convert(path)
     jsonstr = c.dumps()
     path = os.path.join(os.path.dirname(__file__), "example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
-    assert True
+    assert "function_a" in str(c.stringtable)

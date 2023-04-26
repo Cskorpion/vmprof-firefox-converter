@@ -4,13 +4,13 @@ import json
 def convert(path):
     stats = vmprof.read_profile(path)
     c = Converter()
-    c.walk_samples(stats.profiles)
+    c.walk_samples(stats)
     return c# return converter instance for testing
     
 def convert_vmprof(path):
     c = Converter()
     stats = vmprof.read_profile(path)
-    c.walk_samples(stats.profiles)
+    c.walk_samples(stats)
     return c# return converter instance for testing
 
 class Converter:
@@ -63,15 +63,23 @@ class Converter:
     def add_sample(self, stackindex, time, eventdelay):
         self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
 
-    def walk_samples(self, samples):
+    def walk_samples(self, stats):
         #samples is list of tuple ([stack], count, threadid, memory_in_kb)
         dummyeventdelay = 7
-        for i, sample in enumerate(samples):
+        for i, sample in enumerate(stats.profiles):
             frames = []
             stack_info, _, tid, memory = sample
-            stack_height = int(len(stack_info)/2)
-            for j in range(stack_height):
-                frames.append(self.add_frame(stack_info[2 * j]))
+            if stats.profile_lines:
+                indexes = range(0, len(stack_info), 2)
+            else:
+                indexes = range(len(stack_info))
+            for j in indexes:
+                addr_info = stats.get_addr_info(stack_info[j])
+                if addr_info is None:
+                    funcname = stack_info[j]
+                else:
+                    funcname = f"{addr_info[3]}:{addr_info[1]}"
+                frames.append(self.add_frame(funcname))
             stackindex = self.add_stack(frames)
             self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
     
