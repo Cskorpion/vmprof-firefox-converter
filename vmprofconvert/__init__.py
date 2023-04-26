@@ -101,8 +101,8 @@ class Converter:
         vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
         vmprof_meta["stackwalk"] = 1
         vmprof_meta["debug"] = 1
-        vmprof_meta["startTime"] = stats.start_time.timestamp()
-        vmprof_meta["shutdownTime"] = stats.end_time.timestamp()
+        vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
+        vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
         vmprof_meta["processType"] = 0
         os   = stats.getmeta("os","default os")
         bits = stats.getmeta("bits","64")

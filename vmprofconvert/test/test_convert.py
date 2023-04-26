@@ -129,8 +129,8 @@ def test_dump_vmprof_meta():
     c = Converter()
     meta = c.dump_vmprof_meta(stats)
     assert meta["interval"] == 0.000194
-    assert meta["startTime"] == 1681890179.831
-    assert meta["shutdownTime"] == 1681890180.325
+    assert meta["startTime"] == 1681890179831.0
+    assert meta["shutdownTime"] == 1681890180325.0
     assert meta["platform"] == "Windows"
     assert meta["oscpu"] == "Windows 64bit"
     assert meta["abi"] == "cpython"# data from example.prof
