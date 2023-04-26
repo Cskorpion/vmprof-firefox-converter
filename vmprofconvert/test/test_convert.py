@@ -7,10 +7,11 @@ from vmprofconvert import Converter
 class Dummystats():
     def __init__(self, profiles):
         self.profiles = profiles
+        self.profile_lines = True
     
     def get_addr_info(self, addr):
         return ("py", addr, 0, "dummyfile.py")
-
+    
 def test_example():
     path = os.path.join(os.path.dirname(__file__), "example.prof")
     result = convert(path)
