@@ -1,5 +1,6 @@
 import vmprof
 import json
+from vmprofconvert.geckoformat import check_gecko_profile
 
 def convert(path):
     stats = vmprof.read_profile(path)
@@ -91,6 +92,7 @@ class Converter:
         gecko_profile["pausedRanges"] = []
         gecko_profile["threads"] = [self.dump_thread()]
         gecko_profile["processes"] = []
+        check_gecko_profile(gecko_profile)
         return json.dumps(gecko_profile)
     
     def dump_static_meta(self):
