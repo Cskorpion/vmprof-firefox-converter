@@ -143,3 +143,14 @@ def test_dumps_vmprof_with_meta():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert True
+
+def test_profiles():
+    #testing multiple profiles in one run
+    profiles = ["profiles/example.prof", "profiles/vmprof_cpuburn.prof"]# cpuburn.py can be found in vmprof-python github repo
+    expected_samples_count = {}
+    expected_samples_count["profiles/example.prof"] = 2535
+    expected_samples_count["profiles/vmprof_cpuburn.prof"] = 951242
+    for profile in profiles:
+        path = os.path.join(os.path.dirname(__file__), profile)
+        c = convert_vmprof(path)
+        assert len(c.samples) == expected_samples_count[profile]

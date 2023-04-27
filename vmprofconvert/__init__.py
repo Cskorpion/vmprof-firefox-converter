@@ -15,7 +15,7 @@ def convert_vmprof(path):
     return c# return converter instance for testing
 
 def convert_stats(path):
-    # new function because dumps needs stats
+    # new function because dumps_vmprof needs stats
     c = Converter()
     stats = vmprof.read_profile(path)
     c.walk_samples(stats)
