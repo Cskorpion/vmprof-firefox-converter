@@ -15,7 +15,7 @@ class Dummystats():
         return ("py", addr, 0, "dummyfile.py")
     
 def test_example():
-    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
     result = convert(path)
     
 def test_stringtable():
@@ -82,7 +82,7 @@ def test_walksamples():
     assert c.samples == [[1, 0, 7], [2, 1, 7]]# stackindex time dummyeventdelay = 7
 
 def test_walksample_vmprof():
-    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
     c = convert_vmprof(path)
     assert len(c.samples) == 2535# number of samples in example.prof
 
@@ -110,22 +110,22 @@ def test_dumps_simple_profile():
     )
     c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
     jsonstr = c.dumps_static()
-    path = os.path.join(os.path.dirname(__file__), "example.json")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert True
     
 def test_dumps_vmprof():
-    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
     c = convert(path)
     jsonstr = c.dumps_static()
-    path = os.path.join(os.path.dirname(__file__), "example.json")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert "function_a" in str(c.stringtable)
 
 def test_dump_vmprof_meta():
-    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
     stats = vmprof.read_profile(path)
     c = Converter()
     meta = c.dump_vmprof_meta(stats)
@@ -137,9 +137,9 @@ def test_dump_vmprof_meta():
     assert meta["abi"] == "cpython"# data from example.prof
 
 def test_dumps_vmprof_with_meta():
-    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
     jsonstr = convert_stats(path)
-    path = os.path.join(os.path.dirname(__file__), "example.json")
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert True
