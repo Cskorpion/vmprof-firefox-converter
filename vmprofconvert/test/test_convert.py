@@ -3,6 +3,7 @@ import json
 import vmprof
 from vmprofconvert import convert
 from vmprofconvert import convert_vmprof
+from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 
 class Dummystats():
@@ -108,7 +109,7 @@ def test_dumps_simple_profile():
          0 # memory usage in kb
     )
     c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
-    jsonstr = c.dumps()
+    jsonstr = c.dumps_static()
     path = os.path.join(os.path.dirname(__file__), "example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
@@ -117,7 +118,7 @@ def test_dumps_simple_profile():
 def test_dumps_vmprof():
     path = os.path.join(os.path.dirname(__file__), "example.prof")
     c = convert(path)
-    jsonstr = c.dumps()
+    jsonstr = c.dumps_static()
     path = os.path.join(os.path.dirname(__file__), "example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
@@ -134,3 +135,11 @@ def test_dump_vmprof_meta():
     assert meta["platform"] == "Windows"
     assert meta["oscpu"] == "Windows 64bit"
     assert meta["abi"] == "cpython"# data from example.prof
+
+def test_dumps_vmprof_with_meta():
+    path = os.path.join(os.path.dirname(__file__), "example.prof")
+    jsonstr = convert_stats(path)
+    path = os.path.join(os.path.dirname(__file__), "example.json")
+    with open(path, "w") as output_file:
+        output_file.write(json.dumps(json.loads(jsonstr), indent=2))
+    assert True

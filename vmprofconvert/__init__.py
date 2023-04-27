@@ -14,6 +14,13 @@ def convert_vmprof(path):
     c.walk_samples(stats)
     return c# return converter instance for testing
 
+def convert_stats(path):
+    # new function because dumps needs stats
+    c = Converter()
+    stats = vmprof.read_profile(path)
+    c.walk_samples(stats)
+    return c.dumps_vmprof(stats)
+
 class Converter:
     def __init__(self):
         self.stringtable = []
@@ -83,9 +90,20 @@ class Converter:
             stackindex = self.add_stack(frames)
             self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
     
-    def dumps(self):
+    def dumps_static(self):
         gecko_profile = {}
         gecko_profile["meta"] = self.dump_static_meta()
+        gecko_profile["pages"] = []
+        gecko_profile["libs"] = []
+        gecko_profile["pausedRanges"] = []
+        gecko_profile["threads"] = [self.dump_thread()]
+        gecko_profile["processes"] = []
+        check_gecko_profile(gecko_profile)
+        return json.dumps(gecko_profile)
+    
+    def dumps_vmprof(self, stats):
+        gecko_profile = {}
+        gecko_profile["meta"] = self.dump_vmprof_meta(stats)
         gecko_profile["pages"] = []
         gecko_profile["libs"] = []
         gecko_profile["pausedRanges"] = []

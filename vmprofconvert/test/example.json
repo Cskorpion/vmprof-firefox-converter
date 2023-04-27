@@ -1,15 +1,15 @@
 {
   "meta": {
     "version": 5,
-    "interval": 0.4,
+    "interval": 0.000194,
     "stackwalk": 1,
     "debug": 1,
-    "startTime": 1477063882018.4387,
-    "shutdownTime": null,
+    "startTime": 1681890179831.0,
+    "shutdownTime": 1681890180325.0,
     "processType": 0,
-    "platform": "Macintosh",
-    "oscpu": "Intel Mac OS X 10.12",
-    "abi": "x86_64-gcc3"
+    "platform": "Windows",
+    "oscpu": "Windows 64bit",
+    "abi": "cpython"
   },
   "pages": [],
   "libs": [],
