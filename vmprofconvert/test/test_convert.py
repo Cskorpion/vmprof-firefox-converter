@@ -40,12 +40,12 @@ def test_stacktable():
 
 def test_frametable():
     c = Converter()
-    frameindex0 = c.add_frame("duck")
-    frameindex1 = c.add_frame("duck")
+    frameindex0 = c.add_frame("duck", -1)# string, line
+    frameindex1 = c.add_frame("duck", -1)
     assert frameindex0 == frameindex1 == 0
-    frameindex2 = c.add_frame("goose")
+    frameindex2 = c.add_frame("goose", -1)
     assert frameindex2 == frameindex1 + 1
-    assert c.frametable == [0,1]
+    assert c.frametable == [[0, -1],[1, -1]]
     assert c.stringtable == ["duck", "goose"]
 
 def test_sampleslist():
@@ -77,7 +77,7 @@ def test_walksamples():
     )
     c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
     assert c.stringtable == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
-    assert c.frametable == [0, 1, 2]
+    assert c.frametable == [[0, 7], [1, 17], [2, 117]]# stringtableindex, line
     assert c.stacktable == [[0, None], [1, 0], [2, 0]]
     assert c.samples == [[1, 0, 7], [2, 1, 7]]# stackindex time dummyeventdelay = 7
 
@@ -113,7 +113,26 @@ def test_dumps_simple_profile():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
-    assert True
+    jsonobject = json.loads(jsonstr)
+    dumped_frametable = jsonobject["threads"][0]["frameTable"]["data"]
+    expected_dumped_frametable = [[0, False, 2, 1, 7], [1, False, 2, 1, 17], [2, False, 2, 1, 27]] # stringtableindex, relevantforJS, innerwindowID, implementation, line
+    assert dumped_frametable == expected_dumped_frametable
+
+def test_dumps_vmprof_no_lines():
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")#profile_lines == False
+    c = convert(path)
+    jsonstr = c.dumps_static()
+    path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
+    jsonobject = json.loads(jsonstr)
+    dumped_frametable_schema = jsonobject["threads"][0]["frameTable"]["schema"]
+    expected_frametable_schema = {
+        "location": 0,
+        "relevantForJS": 1,
+        "innerWindowID": 2,
+        "implementation": 3
+    }
+    assert dumped_frametable_schema == expected_frametable_schema
+
     
 def test_dumps_vmprof():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
@@ -123,6 +142,7 @@ def test_dumps_vmprof():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert "function_a" in str(c.stringtable)
+
 
 def test_dump_vmprof_meta():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")

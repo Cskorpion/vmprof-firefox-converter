@@ -27,7 +27,7 @@ class Converter:
         self.stringtable_positions = {}
         self.stacktable = [] # list of [frameindex, stacktableindex_or_None]
         self.stacktable_positions = {}
-        self.frametable = []
+        self.frametable = []# list of [stringtableindex, line]   line == -1 if profile_lines == False
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 
@@ -57,14 +57,15 @@ class Converter:
                 self.stacktable_positions[key] = result
                 return result
             
-    def add_frame(self, string):
-        if string in self.frametable_positions:
-            return self.frametable_positions[string]
+    def add_frame(self, string, line):
+        key = (string, line)
+        if key in self.frametable_positions:
+            return self.frametable_positions[key]
         else:
             stringtable_index = self.add_string(string)
             frametable_index = len(self.frametable)
-            self.frametable.append(stringtable_index)
-            self.frametable_positions[string] = frametable_index
+            self.frametable.append([stringtable_index, line])
+            self.frametable_positions[key] = frametable_index
             return frametable_index
     
     def add_sample(self, stackindex, time, eventdelay):
@@ -86,7 +87,10 @@ class Converter:
                     funcname = stack_info[j]
                 else:
                     funcname = f"{addr_info[3]}:{addr_info[1]}"
-                frames.append(self.add_frame(funcname))
+                if stats.profile_lines:
+                    frames.append(self.add_frame(funcname, -1 * stack_info[j + 1]))# vmprof line indexes are negative
+                else:
+                    frames.append(self.add_frame(funcname, -1))
             stackindex = self.add_stack(frames)
             self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
     
@@ -179,13 +183,23 @@ class Converter:
     
     def dump_frametable(self):
         frametable = {}
-        frametable["schema"] = {
-            "location": 0,
-            "relevantForJS": 1,
-            "innerWindowID": 2,
-            "implementation": 3
-        }
-        frametable["data"] = [[index, False, 2, 1] for index in self.frametable]
+        if(len(self.frametable) != 0 and self.frametable[0][1] != -1):# not nice
+            frametable["schema"] = {
+                "location": 0,
+                "relevantForJS": 1,
+                "innerWindowID": 2,
+                "implementation": 3,
+                "line": 4
+            }
+            frametable["data"] = [[frame[0], False, 2, 1, frame[1]] for frame in self.frametable]
+        else:
+            frametable["schema"] = {
+                "location": 0,
+                "relevantForJS": 1,
+                "innerWindowID": 2,
+                "implementation": 3
+            }
+            frametable["data"] = [[frame[0], False, 2, 1] for frame in self.frametable]
         return frametable
     
     def dump_stacktable(self):
