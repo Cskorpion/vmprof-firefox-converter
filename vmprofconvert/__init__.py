@@ -21,7 +21,7 @@ def convert_stats(path):
     c.walk_samples(stats)
     return c.dumps_vmprof(stats)
 
-class Converter:
+class Thread:
     def __init__(self):
         self.stringtable = []
         self.stringtable_positions = {}
@@ -30,6 +30,8 @@ class Converter:
         self.frametable = []# list of [stringtableindex, line]   line == -1 if profile_lines == False
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
+        self.name = "default Thread"
+        self.tid = 7
 
     def add_string(self, string):
         if string in self.stringtable_positions:
@@ -71,89 +73,12 @@ class Converter:
     def add_sample(self, stackindex, time, eventdelay):
         self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
 
-    def walk_samples(self, stats):
-        #samples is list of tuple ([stack], count, threadid, memory_in_kb)
-        dummyeventdelay = 7
-        for i, sample in enumerate(stats.profiles):
-            frames = []
-            stack_info, _, tid, memory = sample
-            if stats.profile_lines:
-                indexes = range(0, len(stack_info), 2)
-            else:
-                indexes = range(len(stack_info))
-            for j in indexes:
-                addr_info = stats.get_addr_info(stack_info[j])
-                if addr_info is None:
-                    funcname = stack_info[j]
-                else:
-                    funcname = f"{addr_info[3]}:{addr_info[1]}"
-                if stats.profile_lines:
-                    frames.append(self.add_frame(funcname, -1 * stack_info[j + 1]))# vmprof line indexes are negative
-                else:
-                    frames.append(self.add_frame(funcname, -1))
-            stackindex = self.add_stack(frames)
-            self.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
-    
-    def dumps_static(self):
-        gecko_profile = {}
-        gecko_profile["meta"] = self.dump_static_meta()
-        gecko_profile["pages"] = []
-        gecko_profile["libs"] = []
-        gecko_profile["pausedRanges"] = []
-        gecko_profile["threads"] = [self.dump_thread()]
-        gecko_profile["processes"] = []
-        check_gecko_profile(gecko_profile)
-        return json.dumps(gecko_profile)
-    
-    def dumps_vmprof(self, stats):
-        gecko_profile = {}
-        gecko_profile["meta"] = self.dump_vmprof_meta(stats)
-        gecko_profile["pages"] = []
-        gecko_profile["libs"] = []
-        gecko_profile["pausedRanges"] = []
-        gecko_profile["threads"] = [self.dump_thread()]
-        gecko_profile["processes"] = []
-        check_gecko_profile(gecko_profile)
-        return json.dumps(gecko_profile)
-    
-    def dump_vmprof_meta(self, stats):
-        vmprof_meta = {}
-        vmprof_meta["version"] = 5
-        ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))# wrong if there are multiple threads
-        vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
-        vmprof_meta["stackwalk"] = 1
-        vmprof_meta["debug"] = 1
-        vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
-        vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
-        vmprof_meta["processType"] = 0
-        os   = stats.getmeta("os","default os")
-        bits = stats.getmeta("bits","64")
-        osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac": "Macintosh"}# vmprof key for mac may be wrong
-        vmprof_meta["platform"] = osdict[os]
-        vmprof_meta["oscpu"] = f"{osdict[os]} {bits}bit"
-        vmprof_meta["abi"] = stats.interp # interpreter
-        return vmprof_meta
-    
-    def dump_static_meta(self):
-        static_meta = {}
-        static_meta["version"] = 5
-        static_meta["interval"] = 0.4
-        static_meta["stackwalk"] = 1
-        static_meta["debug"] = 1
-        static_meta["startTime"] = 1477063882018.4387
-        static_meta["shutdownTime"] = None
-        static_meta["processType"] = 0
-        static_meta["platform"] = "Macintosh"
-        static_meta["oscpu"] = "Intel Mac OS X 10.12"
-        static_meta["abi"] = "x86_64-gcc3"
-        return static_meta
-    
     def dump_thread(self):
         thread = {}
-        thread["name"] = "GeckoMain"
+        thread["name"] = self.name
         thread["processType"] = "default"
         thread["processName"] = "Parent Process"
-        thread["tid"] = 7442229 # get from vmprof samples later
+        thread["tid"] = self.tid
         thread["pid"] = 51580
         thread["registerTime"] = 23.841461000000002
         thread["unregisterTime"] = None
@@ -213,3 +138,94 @@ class Converter:
     
     def dump_stringtable(self):
         return [str(string) for string in self.stringtable]
+
+class Converter:
+    def __init__(self):
+        self.threads = {}
+
+    def walk_samples(self, stats):
+        #threads = {}# dict of threadID to thread class
+        #samples is list of tuple ([stack], count, threadid, memory_in_kb)
+        dummyeventdelay = 7
+        for i, sample in enumerate(stats.profiles):
+            frames = []
+            stack_info, _, tid, memory = sample
+            if tid in self.threads:
+                thread = self.threads[tid]
+            else:
+                thread = self.threads[tid] = Thread() 
+                thread.tid = tid
+                thread.name = "Thread " + str(len(self.threads))# Threads seem to need different names
+            if stats.profile_lines:
+                indexes = range(0, len(stack_info), 2)
+            else:
+                indexes = range(len(stack_info))
+            for j in indexes:
+                addr_info = stats.get_addr_info(stack_info[j])
+                if addr_info is None:
+                    funcname = stack_info[j]
+                else:
+                    funcname = f"{addr_info[3]}:{addr_info[1]}"
+                if stats.profile_lines:
+                    frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1]))# vmprof line indexes are negative
+                else:
+                    frames.append(thread.add_frame(funcname, -1))
+            stackindex = thread.add_stack(frames)
+            thread.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
+    
+    def dumps_static(self):
+        gecko_profile = {}
+        gecko_profile["meta"] = self.dump_static_meta()
+        gecko_profile["pages"] = []
+        gecko_profile["libs"] = []
+        gecko_profile["pausedRanges"] = []
+        gecko_profile["threads"] = self.dump_threads()
+        gecko_profile["processes"] = []
+        check_gecko_profile(gecko_profile)
+        return json.dumps(gecko_profile)
+    
+    def dumps_vmprof(self, stats):
+        gecko_profile = {}
+        gecko_profile["meta"] = self.dump_vmprof_meta(stats)
+        gecko_profile["pages"] = []
+        gecko_profile["libs"] = []
+        gecko_profile["pausedRanges"] = []
+        gecko_profile["threads"] = self.dump_threads()
+        gecko_profile["processes"] = []
+        check_gecko_profile(gecko_profile)
+        return json.dumps(gecko_profile)
+    
+    def dump_threads(self):
+        return [thread.dump_thread()for thread in list(self.threads.values())] 
+    
+    def dump_vmprof_meta(self, stats):
+        vmprof_meta = {}
+        vmprof_meta["version"] = 5
+        ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))# wrong if there are multiple threads
+        vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
+        vmprof_meta["stackwalk"] = 1
+        vmprof_meta["debug"] = 1
+        vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
+        vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
+        vmprof_meta["processType"] = 0
+        os   = stats.getmeta("os","default os")
+        bits = stats.getmeta("bits","64")
+        osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac": "Macintosh"}# vmprof key for mac may be wrong
+        vmprof_meta["platform"] = osdict[os]
+        vmprof_meta["oscpu"] = f"{osdict[os]} {bits}bit"
+        vmprof_meta["abi"] = stats.interp # interpreter
+        return vmprof_meta
+    
+    def dump_static_meta(self):
+        static_meta = {}
+        static_meta["version"] = 5
+        static_meta["interval"] = 0.4
+        static_meta["stackwalk"] = 1
+        static_meta["debug"] = 1
+        static_meta["startTime"] = 1477063882018.4387
+        static_meta["shutdownTime"] = None
+        static_meta["processType"] = 0
+        static_meta["platform"] = "Macintosh"
+        static_meta["oscpu"] = "Intel Mac OS X 10.12"
+        static_meta["abi"] = "x86_64-gcc3"
+        return static_meta

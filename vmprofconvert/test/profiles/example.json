@@ -16,10 +16,10 @@
   "pausedRanges": [],
   "threads": [
     {
-      "name": "GeckoMain",
+      "name": "Thread 1",
       "processType": "default",
       "processName": "Parent Process",
-      "tid": 7442229,
+      "tid": 14348,
       "pid": 51580,
       "registerTime": 23.841461000000002,
       "unregisterTime": null,
