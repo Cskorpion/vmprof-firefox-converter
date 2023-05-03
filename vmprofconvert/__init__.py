@@ -147,6 +147,8 @@ class Converter:
         #threads = {}# dict of threadID to thread class
         #samples is list of tuple ([stack], count, threadid, memory_in_kb)
         dummyeventdelay = 7
+        sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
+        sampletime /= len(stats.profiles)
         for i, sample in enumerate(stats.profiles):
             frames = []
             stack_info, _, tid, memory = sample
@@ -171,7 +173,7 @@ class Converter:
                 else:
                     frames.append(thread.add_frame(funcname, -1))
             stackindex = thread.add_stack(frames)
-            thread.add_sample(stackindex, i, dummyeventdelay)# dummy time = index of sample from vmprof
+            thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
     
     def dumps_static(self):
         gecko_profile = {}

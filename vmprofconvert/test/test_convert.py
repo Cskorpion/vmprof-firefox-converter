@@ -11,9 +11,18 @@ class Dummystats():
     def __init__(self, profiles):
         self.profiles = profiles
         self.profile_lines = True
+        self.end_time = Dummytime(10)
+        self.start_time = Dummytime(0)
     
     def get_addr_info(self, addr):
         return ("py", addr, 0, "dummyfile.py")
+
+class Dummytime():
+    def __init__(self, time):
+        self.time = time
+    
+    def timestamp(self):
+        return self.time
     
 def test_example():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
@@ -81,7 +90,7 @@ def test_walksamples():
     assert t.stringtable == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
     assert t.frametable == [[0, 7], [1, 17], [2, 117]]# stringtableindex, line
     assert t.stacktable == [[0, None], [1, 0], [2, 0]]
-    assert t.samples == [[1, 0, 7], [2, 1, 7]]# stackindex time dummyeventdelay = 7
+    assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
 
 def test_walksample_vmprof():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
