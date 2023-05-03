@@ -1,0 +1,131 @@
+{
+  "meta": {
+    "interval": 0.4,
+    "startTime": 1477063882018.4387,
+    "abi": "x86_64-gcc3",
+    "oscpu": "Intel Mac OS X 10.12",
+    "platform": "Macintosh",
+    "processType": 0,
+    "stackwalk": 1,
+    "debug": true,
+    "version": 27,
+    "categories": [
+      {
+        "name": "default",
+        "color": "transparent"
+      }
+    ],
+    "preprocessedProfileVersion": 47,
+    "symbolicated": true,
+    "markerSchema": [ ]
+  },
+  "libs": [],
+  "pages": [],
+  "counters": [],
+  "threads": [
+    {
+      "name": "GeckoMain",
+      "isMainThread": true,
+      "processType": "default",
+      "processName": "Parent Process",
+      "processStartupTime": 0,
+      "processShutdownTime": null,
+      "registerTime": 0,
+      "unregisterTime": null,
+      "tid": 7442229,
+      "pid": "51580",
+      "pausedRanges": [],
+      "frameTable": {
+        "address": [
+          -1
+        ],
+        "inlineDepth": [
+          0
+        ],
+        "category": [
+          null
+        ],
+        "subcategory": [
+          null
+        ],
+        "func": [
+          0
+        ],
+        "innerWindowID": [
+          0
+        ],
+        "implementation": [
+          false
+        ],
+        "line": [
+          1
+        ],
+        "length": 1
+      },
+      "funcTable": {
+        "isJS": [
+          false
+        ],
+        "relevantForJS": [
+          false
+        ],
+        "name": [
+          3
+        ],
+        "resource": [
+          -1
+        ],
+        "fileName": [
+          null
+        ],
+        "lineNumber": [
+          null
+        ],
+        "length": 1
+      },
+      "resourceTable": {
+        "type": [],
+        "length": 0
+      },
+      "stackTable": {
+        "frame": [
+          0
+        ],
+        "category": [
+          null
+        ],
+        "subcategory": [
+          null
+        ],
+        "prefix": [
+          null
+        ],
+        "length": 1
+      },
+      "markers": {
+        "data": [],
+        "length": 0
+      },
+      "samples": {
+        "stack": [
+          0
+        ],
+        "time": [
+          37067.409299
+        ],
+        "weightType": "samples",
+        "weight": null,
+        "length": 1,
+        "eventDelay": [
+          1.437998
+        ]
+      },
+      "stringArray": [
+        "(root)",
+        "0x109eba3b4",
+        "Events::ProcessGeckoEvents",
+        "Hallo Welt"
+      ]
+    }
+  ]
+}
