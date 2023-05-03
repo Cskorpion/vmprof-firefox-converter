@@ -1,0 +1,204 @@
+{
+  "meta": {
+    "interval": 0.4,
+    "startTime": 1477063882018.4387,
+    "abi": "x86_64-gcc3",
+    "oscpu": "Intel Mac OS X 10.12",
+    "platform": "Macintosh",
+    "processType": 0,
+    "stackwalk": 1,
+    "debug": true,
+    "version": 27,
+    "importedFrom": "VMProf",
+    "categories": [
+      {
+        "name": "default",
+        "color": "transparent",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "Memory",
+        "color": "red",
+        "subcategories": [
+          "Other"
+        ]
+      }
+    ],
+    "preprocessedProfileVersion": 47,
+    "symbolicated": true,
+    "markerSchema": [ ]
+  },
+  "libs": [],
+  "pages": [],
+  "counters": [
+    {
+      "name": "Memory",
+      "category": "Memory",
+      "description": "Amount of allocated memory",
+      "pid": "51580",
+      "mainThreadIndex": 0,
+      "sampleGroups": [
+        {
+        "id": 0,
+        "samples": {
+          "length": 4,
+          "time": [
+            37067.409299,
+            37099.409299,
+            37999.409299,
+            38020.409299
+          ],
+          "number": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "count": [
+            1,
+            20000000,
+            40000000,
+            40000001
+          ]
+          }
+        }
+      ]
+    }
+  ],
+  "threads": [
+    {
+      "name": "GeckoMain",
+      "isMainThread": true,
+      "processType": "default",
+      "processName": "Parent Process",
+      "processStartupTime": 0,
+      "processShutdownTime": null,
+      "registerTime": 0,
+      "unregisterTime": null,
+      "tid": 7442229,
+      "pid": "51580",
+      "pausedRanges": [],
+      "frameTable": {
+        "address": [
+          -1,
+          -2
+        ],
+        "inlineDepth": [
+          0,
+          0
+        ],
+        "category": [
+          0,
+          0
+        ],
+        "subcategory": [
+          null,
+          null
+        ],
+        "func": [
+          0,
+          1
+        ],
+        "innerWindowID": [
+          0,
+          0
+        ],
+        "implementation": [
+          false,
+          false
+        ],
+        "line": [
+          1,
+          1
+        ],
+        "length": 2
+      },
+      "funcTable": {
+        "isJS": [
+          false,
+          false
+        ],
+        "relevantForJS": [
+          false,
+          false
+        ],
+        "name": [
+          3,
+          4
+        ],
+        "resource": [
+          -1,
+          -1
+        ],
+        "fileName": [
+          null,
+          null
+        ],
+        "lineNumber": [
+          null,
+          null
+        ],
+        "length": 2
+      },
+      "resourceTable": {
+        "type": [],
+        "length": 0
+      },
+      "stackTable": {
+        "frame": [
+          0,
+          1
+        ],
+        "category": [
+          0,
+          0
+        ],
+        "subcategory": [
+          null,
+          null
+        ],
+        "prefix": [
+          null,
+          0
+        ],
+        "length": 2
+      },
+      "markers": {
+        "data": [],
+        "length": 0
+      },
+      "samples": {
+        "stack": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "time": [
+          37067.409299,
+          37099.409299,
+          37999.409299,
+          38020.409299
+        ],
+        "weightType": "samples",
+        "weight": null,
+        "length": 4,
+        "eventDelay": [
+          1.437998,
+          1.42,
+          1.4,
+          1.3
+        ]
+      },
+      "stringArray": [
+        "(root)",
+        "0x109eba3b4",
+        "Events::ProcessGeckoEvents",
+        "Hallo Welt",
+        "Floppa"
+      ]
+    }
+  ]
+}
