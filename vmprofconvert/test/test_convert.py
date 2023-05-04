@@ -218,3 +218,14 @@ def test_multiple_threads():
     assert  threadids == expected_threadids
     assert len(t_12345.stringarray) == 2
     assert len(t_54321.stringarray) == 3
+
+def test_dumps_vmprof_memory():
+    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
+    jsonstr = convert_stats(path)
+    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.json")
+    profile = json.loads(jsonstr)
+    memory_samples = profile["counters"][0]["sampleGroups"][0]["samples"]
+    assert memory_samples["count"][0] == 11972000
+    assert memory_samples["count"][1] == 11972000 # Firefox wont show memory unless two samples are not zero
+    assert sum(memory_samples["count"][2:]) == 0
+    assert len(memory_samples["count"]) == 5551
