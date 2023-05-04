@@ -1,6 +1,5 @@
 import vmprof
 import json
-from vmprofconvert.geckoformat import check_gecko_profile
 
 def convert(path):
     stats = vmprof.read_profile(path)
@@ -21,131 +20,12 @@ def convert_stats(path):
     c.walk_samples(stats)
     return c.dumps_vmprof(stats)
 
-class Thread:
-    def __init__(self):
-        self.stringtable = []
-        self.stringtable_positions = {}
-        self.stacktable = [] # list of [frameindex, stacktableindex_or_None]
-        self.stacktable_positions = {}
-        self.frametable = []# list of [stringtableindex, line]   line == -1 if profile_lines == False
-        self.frametable_positions = {}# key is string
-        self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
-        self.name = "default Thread"
-        self.tid = 7
-
-    def add_string(self, string):
-        if string in self.stringtable_positions:
-            return self.stringtable_positions[string]
-        else:
-            result = len(self.stringtable)
-            self.stringtable.append(string)
-            self.stringtable_positions[string] = result
-            return result
-    
-    def add_stack(self, stack):
-        #stack is a list of frametable indexes
-        if not stack:
-            return None
-        else:
-            top = stack[-1]
-            rest = stack[:-1]
-            rest_index = self.add_stack(rest)
-            key = (top, rest_index)
-            if key in self.stacktable_positions:
-                return self.stacktable_positions[key]
-            else:
-                result = len(self.stacktable)
-                self.stacktable.append([top, rest_index])
-                self.stacktable_positions[key] = result
-                return result
-            
-    def add_frame(self, string, line):
-        key = (string, line)
-        if key in self.frametable_positions:
-            return self.frametable_positions[key]
-        else:
-            stringtable_index = self.add_string(string)
-            frametable_index = len(self.frametable)
-            self.frametable.append([stringtable_index, line])
-            self.frametable_positions[key] = frametable_index
-            return frametable_index
-    
-    def add_sample(self, stackindex, time, eventdelay):
-        self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
-
-    def dump_thread(self):
-        thread = {}
-        thread["name"] = self.name
-        thread["processType"] = "default"
-        thread["processName"] = "Parent Process"
-        thread["tid"] = self.tid
-        thread["pid"] = 51580
-        thread["registerTime"] = 23.841461000000002
-        thread["unregisterTime"] = None
-        thread["markers"] = { 
-            "schema": {
-                  "name": 0,
-                  "time": 1,
-                  "data": 2
-                },
-            "data": []
-        }
-        thread["samples"] = self.dump_samples()
-        thread["frameTable"] = self.dump_frametable()
-        thread["stackTable"] = self.dump_stacktable()
-        thread["stringTable"] = self.dump_stringtable()
-        return thread
-
-    def dump_samples(self):
-        samples = {}
-        samples["schema"] = {
-            "stack": 0,
-            "time": 1,
-            "eventDelay": 2
-        }
-        samples["data"] = self.samples
-        return samples
-    
-    def dump_frametable(self):
-        frametable = {}
-        if(len(self.frametable) != 0 and self.frametable[0][1] != -1):# not nice
-            frametable["schema"] = {
-                "location": 0,
-                "relevantForJS": 1,
-                "innerWindowID": 2,
-                "implementation": 3,
-                "line": 4
-            }
-            frametable["data"] = [[frame[0], False, 2, 1, frame[1]] for frame in self.frametable]
-        else:
-            frametable["schema"] = {
-                "location": 0,
-                "relevantForJS": 1,
-                "innerWindowID": 2,
-                "implementation": 3
-            }
-            frametable["data"] = [[frame[0], False, 2, 1] for frame in self.frametable]
-        return frametable
-    
-    def dump_stacktable(self):
-        stacktable = {}
-        stacktable["schema"] = {
-                "frame": 0,
-                "prefix": 1
-        }
-        stacktable["data"] = self.stacktable
-        return stacktable
-    
-    def dump_stringtable(self):
-        return [str(string) for string in self.stringtable]
-
 class Converter:
     def __init__(self):
         self.threads = {}
-
+        self.counters = []#
+    
     def walk_samples(self, stats):
-        #threads = {}# dict of threadID to thread class
-        #samples is list of tuple ([stack], count, threadid, memory_in_kb)
         dummyeventdelay = 7
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
@@ -174,60 +54,275 @@ class Converter:
                     frames.append(thread.add_frame(funcname, -1))
             stackindex = thread.add_stack(frames)
             thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
-    
+            if stats.profile_memory == True:
+                self.counters.append([i * sampletime, memory * 1000])
+
     def dumps_static(self):
-        gecko_profile = {}
-        gecko_profile["meta"] = self.dump_static_meta()
-        gecko_profile["pages"] = []
-        gecko_profile["libs"] = []
-        gecko_profile["pausedRanges"] = []
-        gecko_profile["threads"] = self.dump_threads()
-        gecko_profile["processes"] = []
-        check_gecko_profile(gecko_profile)
-        return json.dumps(gecko_profile)
+        processed_profile = {}
+        processed_profile["meta"] = self.dump_static_meta()
+        processed_profile["libs"] = []
+        processed_profile["pages"] = []
+        processed_profile["counters"] = []
+        processed_profile["threads"] = self.dump_threads()
+        return json.dumps(processed_profile)
     
     def dumps_vmprof(self, stats):
-        gecko_profile = {}
-        gecko_profile["meta"] = self.dump_vmprof_meta(stats)
-        gecko_profile["pages"] = []
-        gecko_profile["libs"] = []
-        gecko_profile["pausedRanges"] = []
-        gecko_profile["threads"] = self.dump_threads()
-        gecko_profile["processes"] = []
-        check_gecko_profile(gecko_profile)
-        return json.dumps(gecko_profile)
+        processed_profile = {}
+        processed_profile["meta"] = self.dump_vmprof_meta(stats)
+        processed_profile["libs"] = []
+        processed_profile["pages"] = []
+        if(stats.profile_memory):
+            processed_profile["counters"] = [self.dump_counters()]
+        else:
+            processed_profile["counters"] = []
+        processed_profile["threads"] = self.dump_threads()
+        return json.dumps(processed_profile)
     
     def dump_threads(self):
         return [thread.dump_thread()for thread in list(self.threads.values())] 
     
+    def dump_static_meta(self):
+        static_meta = {}
+        static_meta["interval"] = 0.4
+        static_meta["startTime"] = 1477063882018.4387
+        static_meta["abi"] = "x86_64-gcc3"
+        static_meta["oscpu"] = "Intel Mac OS X 10.12"
+        static_meta["platform"] = "Macintosh"
+        static_meta["processType"] = 0
+        static_meta["stackwalk"] = 1
+        static_meta["debug"] = False
+        static_meta["version"] = 27
+        static_meta["importedFrom"] = "VMProf"
+        static_meta["categories"] = [
+            {
+                "name": "default",
+                "color": "transparent",
+                "subcategories": [
+                    "Other"
+                ]
+            },
+            {
+                "name": "Memory",
+                "color": "red",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        ]
+        static_meta["preprocessedProfileVersion"] = 47
+        static_meta["symbolicated"] = True
+        static_meta["markerSchema"] = []
+        return static_meta
+
     def dump_vmprof_meta(self, stats):
         vmprof_meta = {}
-        vmprof_meta["version"] = 5
         ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))# wrong if there are multiple threads
+        
         vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
-        vmprof_meta["stackwalk"] = 1
-        vmprof_meta["debug"] = 1
         vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
         vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
-        vmprof_meta["processType"] = 0
+        vmprof_meta["abi"] = stats.interp # interpreter
+
         os   = stats.getmeta("os","default os")
         bits = stats.getmeta("bits","64")
         osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac": "Macintosh"}# vmprof key for mac may be wrong
-        vmprof_meta["platform"] = osdict[os]
+        
         vmprof_meta["oscpu"] = f"{osdict[os]} {bits}bit"
-        vmprof_meta["abi"] = stats.interp # interpreter
+        vmprof_meta["platform"] = osdict[os]
+        vmprof_meta["processType"] = 0
+        vmprof_meta["stackwalk"] = 1
+        vmprof_meta["debug"] = False
+        vmprof_meta["version"] = 27
+        vmprof_meta["importedFrom"] = "VMProf"
+        vmprof_meta["categories"] = [
+            {
+                "name": "default",
+                "color": "transparent",
+                "subcategories": [
+                    "Other"
+                ]
+            },
+            {
+                "name": "Memory",
+                "color": "red",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        ]
+        vmprof_meta["preprocessedProfileVersion"] = 47
+        vmprof_meta["symbolicated"] = True
+        vmprof_meta["markerSchema"] = []
+        
         return vmprof_meta
     
-    def dump_static_meta(self):
-        static_meta = {}
-        static_meta["version"] = 5
-        static_meta["interval"] = 0.4
-        static_meta["stackwalk"] = 1
-        static_meta["debug"] = 1
-        static_meta["startTime"] = 1477063882018.4387
-        static_meta["shutdownTime"] = None
-        static_meta["processType"] = 0
-        static_meta["platform"] = "Macintosh"
-        static_meta["oscpu"] = "Intel Mac OS X 10.12"
-        static_meta["abi"] = "x86_64-gcc3"
-        return static_meta
+    def dump_counters(self):
+        counter = {}
+        counter["name"] = "Memory"
+        counter["category"] = "Memory"
+        counter["description"] = "Amount of allocated memory"
+        counter["pid"] = "51580"
+        counter["mainThreadIndex"] = 0
+        memory_in_alloc_form =  self.get_mem_allocations()
+        counter["sampleGroups"] = [
+            {
+                "id": 0,
+                "samples": {
+                     "length": len(memory_in_alloc_form),
+                     "time": [mem[0] for mem in memory_in_alloc_form],
+                     "count": [mem[1] for mem in memory_in_alloc_form]
+                }
+            }
+        ]
+        return counter
+    
+    def get_mem_allocations(self):
+        mem_diff = [self.counters[0],self.counters[0]]# memory wont show up without two non zero samples
+        current_mem = mem_diff[0][1]
+        for ctr in self.counters[1:len(self.counters) - 1 ]:
+            mem_diff.append([ctr[0], (current_mem - ctr[1])])
+            current_mem = ctr[1]
+        return mem_diff
+
+
+
+class Thread:
+    def __init__(self):
+        self.stringarray = []
+        self.stringarray_positions = {}
+        self.stacktable = []# list of [frameindex, stacktableindex_or_None]
+        self.stacktable_positions = {}
+        self.functable = []# list of [stringtable_index]
+        self.funtable_positions = {}
+        self.frametable = []# list of [functable_index, line]   line == -1 if profile_lines == False
+        self.frametable_positions = {}# key is string
+        self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
+
+    def add_string(self, string):
+        if string in self.stringarray_positions:
+            return self.stringarray_positions[string]
+        else:
+            result = len(self.stringarray)
+            self.stringarray.append(string)
+            self.stringarray_positions[string] = result
+            return result
+        
+    def add_stack(self, stack):
+        #stack is a list of frametable indexes
+        if not stack:
+            return None
+        else:
+            top = stack[-1]
+            rest = stack[:-1]
+            rest_index = self.add_stack(rest)
+            key = (top, rest_index)
+            if key in self.stacktable_positions:
+                return self.stacktable_positions[key]
+            else:
+                result = len(self.stacktable)
+                self.stacktable.append([top, rest_index])
+                self.stacktable_positions[key] = result
+                return result
+            
+    def add_func(self, string):
+        if string in self.funtable_positions:
+            return self.funtable_positions[string]
+        else:
+            stringtable_index = self.add_string(string)
+            result = len(self.functable)
+            self.functable.append(stringtable_index)
+            self.funtable_positions[string] = result
+            return result
+            
+    def add_frame(self, string, line):
+        key = (string, line)
+        if key in self.frametable_positions:
+            return self.frametable_positions[key]
+        else:
+            functable_index = self.add_func(string)
+            #stringtable_index = self.add_string(string)
+            frametable_index = len(self.frametable)
+            self.frametable.append([functable_index, line])
+            self.frametable_positions[key] = frametable_index
+            return frametable_index
+        
+    def add_sample(self, stackindex, time, eventdelay):
+        self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
+    
+    def dump_thread(self):
+        thread = {}
+        thread["name"] = self.name
+        thread["isMainThread"] = True
+        thread["processType"] = "default"
+        thread["processName"] = "Parent Process"
+        thread["processStartupTime"] = 0
+        thread["processShutdownTime"] = None
+        thread["registerTime"] = 23.841461000000002
+        thread["unregisterTime"] = None
+        thread["tid"] = self.tid
+        thread["pid"] = "51580"
+
+        thread["markers"] = { 
+            "data": [],
+            "length": 0
+        }
+
+        thread["frameTable"] = self.dump_frametable()
+        thread["funcTable"] = self.dump_functable()
+       
+        thread["resourceTable"] = { 
+            "type": [],
+            "length": 0
+        }
+       
+        thread["stackTable"] = self.dump_stacktable()
+        thread["samples"] = self.dump_samples()
+        thread["stringArray"] = self.dump_stringarray()
+
+        return thread
+    
+    def dump_frametable(self):
+        ftable = {}
+        ftable["address"] = [-1 for _ in self.frametable]
+        ftable["inlineDepth"] = [0 for _ in self.frametable]
+        ftable["category"] = [0 for _ in self.frametable]
+        ftable["subcategory"] = [None for _ in self.frametable]
+        ftable["func"] = [frame[0] for frame in self.frametable]
+        ftable["innerWindowID"] = [0 for _ in self.frametable]
+        if self.frametable[0][1] != -1:
+            ftable["line"] = [frame[1] for frame in self.frametable]
+        ftable["length"] = len(self.frametable)
+        return ftable
+
+    def dump_functable(self):
+        ftable = {}
+        ftable["isJS"] = [False for _ in self.functable]
+        ftable["relevantForJS"] = [False for _ in self.functable]
+        ftable["name"] = [func for func in self.functable]
+        ftable["resource"] = [-1 for _ in self.functable]
+        ftable["fileName"] = [None for _ in self.functable]
+        ftable["lineNumber"] = [None for _ in self.functable]
+        ftable["length"] = len(self.functable)
+        return ftable
+
+    def dump_stacktable(self):
+        stable = {}
+        stable["frame"] = [stack[0] for stack in self.stacktable]
+        stable["category"] = [0 for _ in self.stacktable]
+        stable["subcategory"] = [None for _ in self.stacktable]
+        stable["prefix"] = [stack[1] for stack in self.stacktable]
+        stable["length"] = len(self.stacktable)
+        return stable
+    
+    def dump_samples(self):
+        samples = {}
+        samples["stack"] = [sample[0] for sample in self.samples]
+        samples["time"] = [sample[1] for sample in self.samples]
+        samples["eventDelay"] = [sample[2] for sample in self.samples]
+        samples["weightType"] = "samples"
+        samples["weight"] = None
+        samples["length"] = len(self.samples)
+        return samples
+    
+    def dump_stringarray(self):
+        return [str(string) for string in self.stringarray]

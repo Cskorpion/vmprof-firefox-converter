@@ -11,6 +11,7 @@ class Dummystats():
     def __init__(self, profiles):
         self.profiles = profiles
         self.profile_lines = True
+        self.profile_memory = False
         self.end_time = Dummytime(10)
         self.start_time = Dummytime(0)
     
@@ -28,7 +29,7 @@ def test_example():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
     result = convert(path)
     
-def test_stringtable():
+def test_stringarray():
     t = Thread()
     index = t.add_string("Hallo")
     assert index == 0
@@ -36,7 +37,7 @@ def test_stringtable():
     assert index == 0
     index = t.add_string("Huhu")
     assert index == 1
-    assert t.stringtable == ["Hallo", "Huhu"]
+    assert t.stringarray == ["Hallo", "Huhu"]
 
 def test_stacktable():
     t = Thread()
@@ -56,7 +57,7 @@ def test_frametable():
     frameindex2 = t.add_frame("goose", -1)
     assert frameindex2 == frameindex1 + 1
     assert t.frametable == [[0, -1],[1, -1]]
-    assert t.stringtable == ["duck", "goose"]
+    assert t.stringarray == ["duck", "goose"]
 
 def test_sampleslist():
     t = Thread()
@@ -87,7 +88,7 @@ def test_walksamples():
     )
     c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
     t = c.threads[12345] # info now stored in thread inside Converter
-    assert t.stringtable == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
+    assert t.stringarray == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
     assert t.frametable == [[0, 7], [1, 17], [2, 117]]# stringtableindex, line
     assert t.stacktable == [[0, None], [1, 0], [2, 0]]
     assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
@@ -126,9 +127,9 @@ def test_dumps_simple_profile():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     jsonobject = json.loads(jsonstr)
-    dumped_frametable = jsonobject["threads"][0]["frameTable"]["data"]
-    expected_dumped_frametable = [[0, False, 2, 1, 7], [1, False, 2, 1, 17], [2, False, 2, 1, 27]] # stringtableindex, relevantforJS, innerwindowID, implementation, line
-    assert dumped_frametable == expected_dumped_frametable
+    dumped_funcreferences = jsonobject["threads"][0]["frameTable"]["func"]
+    expected_dumped_funcreferences = [0,1,2]
+    assert dumped_funcreferences == expected_dumped_funcreferences
 
 def test_dumps_vmprof_no_lines():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")#profile_lines == False
@@ -136,14 +137,8 @@ def test_dumps_vmprof_no_lines():
     jsonstr = c.dumps_static()
     path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     jsonobject = json.loads(jsonstr)
-    dumped_frametable_schema = jsonobject["threads"][0]["frameTable"]["schema"]
-    expected_frametable_schema = {
-        "location": 0,
-        "relevantForJS": 1,
-        "innerWindowID": 2,
-        "implementation": 3
-    }
-    assert dumped_frametable_schema == expected_frametable_schema
+    dumped_frametable = jsonobject["threads"][0]["frameTable"]
+    assert "line" not in dumped_frametable
 
     
 def test_dumps_vmprof():
@@ -154,7 +149,7 @@ def test_dumps_vmprof():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     t = list(c.threads.values())[0]
-    assert "function_a" in str(t.stringtable)
+    assert "function_a" in str(t.stringarray)
 
 
 def test_dump_vmprof_meta():
@@ -170,9 +165,9 @@ def test_dump_vmprof_meta():
     assert meta["abi"] == "cpython"# data from example.prof
 
 def test_dumps_vmprof_with_meta():
-    path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
+    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     jsonstr = convert_stats(path)
-    path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
+    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     assert True
@@ -182,7 +177,7 @@ def test_profiles():
     profiles = ["profiles/example.prof", "profiles/vmprof_cpuburn.prof"]# cpuburn.py can be found in vmprof-python github repo
     expected_samples_count = {}
     expected_samples_count["profiles/example.prof"] = 2535
-    expected_samples_count["profiles/vmprof_cpuburn.prof"] = 951242
+    expected_samples_count["profiles/vmprof_cpuburn.prof"] = 5551
     for profile in profiles:
         path = os.path.join(os.path.dirname(__file__), profile)
         c = convert_vmprof(path)
@@ -221,5 +216,5 @@ def test_multiple_threads():
     threadids = list(c.threads.keys())
     expected_threadids = [12345, 54321]
     assert  threadids == expected_threadids
-    assert len(t_12345.stringtable) == 2
-    assert len(t_54321.stringtable) == 3
+    assert len(t_12345.stringarray) == 2
+    assert len(t_54321.stringarray) == 3

@@ -34,7 +34,6 @@
       "unregisterTime": null,
       "tid": 7442229,
       "pid": "51580",
-      "pausedRanges": [],
       "frameTable": {
         "address": [
           -1
@@ -53,9 +52,6 @@
         ],
         "innerWindowID": [
           0
-        ],
-        "implementation": [
-          false
         ],
         "line": [
           1

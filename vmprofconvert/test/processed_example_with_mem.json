@@ -35,7 +35,7 @@
   "counters": [
     {
       "name": "Memory",
-      "category": "Memory",
+      "category": 0,
       "description": "Amount of allocated memory",
       "pid": "51580",
       "mainThreadIndex": 0,
@@ -59,8 +59,8 @@
           "count": [
             1,
             20000000,
-            40000000,
-            40000001
+            20000000,
+            20000000
           ]
           }
         }
