@@ -29,8 +29,12 @@ class Converter:
         dummyeventdelay = 7
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
+        category_dict = {}
+        category_dict["py"] = 0
+        category_dict["n"] = 2
         for i, sample in enumerate(stats.profiles):
             frames = []
+            categorys = []
             stack_info, _, tid, memory = sample
             if tid in self.threads:
                 thread = self.threads[tid]
@@ -45,14 +49,16 @@ class Converter:
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
                 if addr_info is None:
+                    categorys.append(0)
                     funcname = stack_info[j]
                 else:
                     funcname = f"{addr_info[3]}:{addr_info[1]}"
+                    categorys.append(category_dict[addr_info[0]]) 
                 if stats.profile_lines:
                     frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1]))# vmprof line indexes are negative
                 else:
                     frames.append(thread.add_frame(funcname, -1))
-            stackindex = thread.add_stack(frames)
+            stackindex = thread.add_stack(frames, categorys)
             thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
             if stats.profile_memory == True:
                 self.counters.append([i * sampletime, memory * 1000])
@@ -95,8 +101,8 @@ class Converter:
         static_meta["importedFrom"] = "VMProf"
         static_meta["categories"] = [
             {
-                "name": "default",
-                "color": "transparent",
+                "name": "Python",
+                "color": "yellow",
                 "subcategories": [
                     "Other"
                 ]
@@ -104,6 +110,13 @@ class Converter:
             {
                 "name": "Memory",
                 "color": "red",
+                "subcategories": [
+                    "Other"
+                ]
+            },
+            {
+                "name": "Native",
+                "color": "blue",
                 "subcategories": [
                     "Other"
                 ]
@@ -136,8 +149,8 @@ class Converter:
         vmprof_meta["importedFrom"] = "VMProf"
         vmprof_meta["categories"] = [
             {
-                "name": "default",
-                "color": "transparent",
+                "name": "Python",
+                "color": "yellow",
                 "subcategories": [
                     "Other"
                 ]
@@ -145,6 +158,13 @@ class Converter:
             {
                 "name": "Memory",
                 "color": "red",
+                "subcategories": [
+                    "Other"
+                ]
+            },
+            {
+                "name": "Native",
+                "color": "blue",
                 "subcategories": [
                     "Other"
                 ]
@@ -194,7 +214,7 @@ class Thread:
         self.stacktable_positions = {}
         self.functable = []# list of [stringtable_index]
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index, line]   line == -1 if profile_lines == False
+        self.frametable = []# list of [functable_index, line, category]   line == -1 if profile_lines == False cat{0 = py, 1 = mem, 2 = native}
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 
@@ -207,20 +227,22 @@ class Thread:
             self.stringarray_positions[string] = result
             return result
         
-    def add_stack(self, stack):
+    def add_stack(self, stack, categorys):
         #stack is a list of frametable indexes
         if not stack:
             return None
         else:
             top = stack[-1]
             rest = stack[:-1]
-            rest_index = self.add_stack(rest)
-            key = (top, rest_index)
+            top_category = categorys[-1]
+            rest_categorys = categorys[:-1]
+            rest_index = self.add_stack(rest, rest_categorys)
+            key = (top, rest_index, top_category)
             if key in self.stacktable_positions:
                 return self.stacktable_positions[key]
             else:
                 result = len(self.stacktable)
-                self.stacktable.append([top, rest_index])
+                self.stacktable.append([top, rest_index, top_category])
                 self.stacktable_positions[key] = result
                 return result
             
@@ -308,7 +330,7 @@ class Thread:
     def dump_stacktable(self):
         stable = {}
         stable["frame"] = [stack[0] for stack in self.stacktable]
-        stable["category"] = [0 for _ in self.stacktable]
+        stable["category"] = [stack[2] for stack in self.stacktable]
         stable["subcategory"] = [None for _ in self.stacktable]
         stable["prefix"] = [stack[1] for stack in self.stacktable]
         stable["length"] = len(self.stacktable)

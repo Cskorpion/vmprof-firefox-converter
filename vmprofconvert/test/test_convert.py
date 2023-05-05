@@ -41,12 +41,13 @@ def test_stringarray():
 
 def test_stacktable():
     t = Thread()
-    assert t.add_stack([]) is None
-    stackindex0 = t.add_stack([1,2,3])# Top of Stack is 3
-    stackindex1 = t.add_stack([1,2,3])
+    assert t.add_stack([], 0) is None
+    stackindex0 = t.add_stack([1,2,3], [0,0,0])# Top of Stack is 3    [stack], [categorys]
+    stackindex1 = t.add_stack([1,2,3], [0,0,0])
     assert stackindex0 == stackindex1 == 2
-    assert t.stacktable == [[1,None], [2,0], [3,1]]
-    stackindex2 = t.add_stack([1,2,3,4])
+    assert t.stacktable == [[1,None,0], [2,0,0], [3,1,0]]
+    stackindex2 = t.add_stack([1,2,3,4], [0,0,0,1])
+    print(t.stacktable)
     assert stackindex2 == stackindex1 + 1
 
 def test_frametable():
@@ -90,7 +91,7 @@ def test_walksamples():
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
     assert t.frametable == [[0, 7], [1, 17], [2, 117]]# stringtableindex, line
-    assert t.stacktable == [[0, None], [1, 0], [2, 0]]
+    assert t.stacktable == [[0, None, 0], [1, 0, 0], [2, 0, 0]]
     assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
 
 def test_walksample_vmprof():
