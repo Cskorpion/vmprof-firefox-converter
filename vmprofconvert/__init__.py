@@ -51,13 +51,15 @@ class Converter:
                 if addr_info is None:
                     categorys.append(0)
                     funcname = stack_info[j]
+                    filename = ""
                 else:
-                    funcname = f"{addr_info[3]}:{addr_info[1]}"
+                    funcname = addr_info[1]
+                    filename = addr_info[3]
                     categorys.append(category_dict[addr_info[0]]) 
                 if stats.profile_lines:
-                    frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1]))# vmprof line indexes are negative
+                    frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1], filename))# vmprof line indexes are negative
                 else:
-                    frames.append(thread.add_frame(funcname, -1))
+                    frames.append(thread.add_frame(funcname, -1, filename))
             stackindex = thread.add_stack(frames, categorys)
             thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
             if stats.profile_memory == True:
@@ -212,7 +214,7 @@ class Thread:
         self.stringarray_positions = {}
         self.stacktable = []# list of [frameindex, stacktableindex_or_None]
         self.stacktable_positions = {}
-        self.functable = []# list of [stringtable_index]
+        self.functable = []# list of [stringtable_index, stringtable_index] funcname, filename
         self.funtable_positions = {}
         self.frametable = []# list of [functable_index, line, category]   line == -1 if profile_lines == False cat{0 = py, 1 = mem, 2 = native}
         self.frametable_positions = {}# key is string
@@ -246,22 +248,24 @@ class Thread:
                 self.stacktable_positions[key] = result
                 return result
             
-    def add_func(self, string):
-        if string in self.funtable_positions:
-            return self.funtable_positions[string]
+    def add_func(self, func, file):
+        key = (func, file)
+        if key in self.funtable_positions:
+            return self.funtable_positions[key]
         else:
-            stringtable_index = self.add_string(string)
+            stringtable_index_func = self.add_string(func)
+            stringtable_index_file = self.add_string(file)
             result = len(self.functable)
-            self.functable.append(stringtable_index)
-            self.funtable_positions[string] = result
+            self.functable.append([stringtable_index_func, stringtable_index_file])
+            self.funtable_positions[key] = result
             return result
             
-    def add_frame(self, string, line):
+    def add_frame(self, string, line, file):
         key = (string, line)
         if key in self.frametable_positions:
             return self.frametable_positions[key]
         else:
-            functable_index = self.add_func(string)
+            functable_index = self.add_func(string, file)
             #stringtable_index = self.add_string(string)
             frametable_index = len(self.frametable)
             self.frametable.append([functable_index, line])
@@ -320,9 +324,9 @@ class Thread:
         ftable = {}
         ftable["isJS"] = [False for _ in self.functable]
         ftable["relevantForJS"] = [False for _ in self.functable]
-        ftable["name"] = [func for func in self.functable]
+        ftable["name"] = [func[0] for func in self.functable]
         ftable["resource"] = [-1 for _ in self.functable]
-        ftable["fileName"] = [None for _ in self.functable]
+        ftable["fileName"] = [func[1]  for func in self.functable]
         ftable["lineNumber"] = [None for _ in self.functable]
         ftable["length"] = len(self.functable)
         return ftable

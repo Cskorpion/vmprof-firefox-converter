@@ -52,13 +52,23 @@ def test_stacktable():
 
 def test_frametable():
     t = Thread()
-    frameindex0 = t.add_frame("duck", -1)# string, line
-    frameindex1 = t.add_frame("duck", -1)
+    frameindex0 = t.add_frame("duck", -1, "dummyfile.py")# string, line, file
+    frameindex1 = t.add_frame("duck", -1, "dummyfile.py")
     assert frameindex0 == frameindex1 == 0
-    frameindex2 = t.add_frame("goose", -1)
+    frameindex2 = t.add_frame("goose", -1, "dummyfile.py")
     assert frameindex2 == frameindex1 + 1
     assert t.frametable == [[0, -1],[1, -1]]
-    assert t.stringarray == ["duck", "goose"]
+    assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
+
+def test_functable():
+    t = Thread()
+    funcindex0 = t.add_func("function_a", "dummyfile.py")# func, file
+    funcindex1 = t.add_func("function_a", "dummyfile.py")
+    assert funcindex0 == funcindex1 == 0
+    funcindex2 = t.add_func("function_b", "dummyfile.py")
+    assert funcindex2 == funcindex1 + 1
+    assert t.functable == [[0,1],[2,1]]
+    assert t.stringarray == ["function_a", "dummyfile.py" , "function_b"]
 
 def test_sampleslist():
     t = Thread()
@@ -89,7 +99,7 @@ def test_walksamples():
     )
     c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
     t = c.threads[12345] # info now stored in thread inside Converter
-    assert t.stringarray == ["dummyfile.py:function_a", "dummyfile.py:function_b", "dummyfile.py:function_c"]
+    assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
     assert t.frametable == [[0, 7], [1, 17], [2, 117]]# stringtableindex, line
     assert t.stacktable == [[0, None, 0], [1, 0, 0], [2, 0, 0]]
     assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
@@ -221,8 +231,8 @@ def test_multiple_threads():
     threadids = list(c.threads.keys())
     expected_threadids = [12345, 54321]
     assert  threadids == expected_threadids
-    assert len(t_12345.stringarray) == 2
-    assert len(t_54321.stringarray) == 3
+    assert len(t_12345.stringarray) == 3
+    assert len(t_54321.stringarray) == 4
 
 def test_dumps_vmprof_memory():
     path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")

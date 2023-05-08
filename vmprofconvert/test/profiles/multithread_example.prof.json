@@ -1220,12 +1220,9 @@
         ],
         "name": [
           0,
-          1,
           2,
           3,
-          4,
           5,
-          6,
           7,
           8,
           9,
@@ -1240,7 +1237,10 @@
           18,
           19,
           20,
-          21
+          21,
+          22,
+          23,
+          24
         ],
         "resource": [
           -1,
@@ -1267,28 +1267,28 @@
           -1
         ],
         "fileName": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
+          1,
+          1,
+          4,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6,
+          6
         ],
         "lineNumber": [
           null,
@@ -2028,28 +2028,31 @@
         "length": 155
       },
       "stringArray": [
-        "/home/christoph/anaconda3/lib/python3.9/threading.py:_bootstrap",
-        "/home/christoph/anaconda3/lib/python3.9/threading.py:_bootstrap_inner",
-        "multithread_example.py:run",
-        "-:<native symbol 0x560731>",
-        "-:<native symbol 0x4f86a1>",
-        "-:<native symbol 0x4efc11>",
-        "-:<native symbol 0x5c7ea1>",
-        "-:PyFile_WriteString",
-        "-:PyFile_WriteObject",
-        "-:<native symbol 0x5a6b51>",
-        "-:<native symbol 0x4efb91>",
-        "-:<native symbol 0x4f7c21>",
-        "-:<native symbol 0x5c0611>",
-        "-:PyObject_VectorcallMethod",
-        "-:<native symbol 0x4fd101>",
-        "-:<native symbol 0x5bf751>",
-        "-:<native symbol 0x5bf7e1>",
-        "-:<native symbol 0x5bf901>",
-        "-:<native symbol 0x5c1341>",
-        "-:<native symbol 0x504041>",
-        "-:<native symbol 0x5bf481>",
-        "-:_Py_write"
+        "_bootstrap",
+        "/home/christoph/anaconda3/lib/python3.9/threading.py",
+        "_bootstrap_inner",
+        "run",
+        "multithread_example.py",
+        "<native symbol 0x560731>",
+        "-",
+        "<native symbol 0x4f86a1>",
+        "<native symbol 0x4efc11>",
+        "<native symbol 0x5c7ea1>",
+        "PyFile_WriteString",
+        "PyFile_WriteObject",
+        "<native symbol 0x5a6b51>",
+        "<native symbol 0x4efb91>",
+        "<native symbol 0x4f7c21>",
+        "<native symbol 0x5c0611>",
+        "PyObject_VectorcallMethod",
+        "<native symbol 0x4fd101>",
+        "<native symbol 0x5bf751>",
+        "<native symbol 0x5bf7e1>",
+        "<native symbol 0x5bf901>",
+        "<native symbol 0x5c1341>",
+        "<native symbol 0x504041>",
+        "<native symbol 0x5bf481>",
+        "_Py_write"
       ]
     },
     {
@@ -2171,10 +2174,10 @@
         ],
         "name": [
           0,
-          1,
           2,
           3,
-          4
+          5,
+          7
         ],
         "resource": [
           -1,
@@ -2184,11 +2187,11 @@
           -1
         ],
         "fileName": [
-          null,
-          null,
-          null,
-          null,
-          null
+          1,
+          1,
+          4,
+          6,
+          6
         ],
         "lineNumber": [
           null,
@@ -3137,11 +3140,14 @@
         "length": 281
       },
       "stringArray": [
-        "/home/christoph/anaconda3/lib/python3.9/threading.py:_bootstrap",
-        "/home/christoph/anaconda3/lib/python3.9/threading.py:_bootstrap_inner",
-        "multithread_example.py:run",
-        "-:<native symbol 0x560731>",
-        "-:<native symbol 0x4f86a1>"
+        "_bootstrap",
+        "/home/christoph/anaconda3/lib/python3.9/threading.py",
+        "_bootstrap_inner",
+        "run",
+        "multithread_example.py",
+        "<native symbol 0x560731>",
+        "-",
+        "<native symbol 0x4f86a1>"
       ]
     }
   ]
