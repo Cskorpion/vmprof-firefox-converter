@@ -23,7 +23,7 @@ jobs:
 
     - name: Set up Python 3.9
       run: |
-        apt install libunwind-dev
+        sudo apt install libunwind-dev
 
     - name: Set up Python 3.9
       uses: actions/setup-python@v4
