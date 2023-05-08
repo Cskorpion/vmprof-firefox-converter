@@ -28,7 +28,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
-        python -m pip pytest
+        python -m pip install pytest
 
     - name: Test with pytest
       run: |
