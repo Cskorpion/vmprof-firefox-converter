@@ -175,10 +175,14 @@ def test_dumps_vmprof_with_meta():
 
 def test_profiles():
     #test multiple profiles in one run
-    profiles = ["profiles/example.prof", "profiles/vmprof_cpuburn.prof"]# cpuburn.py can be found in vmprof-python github repo
+    profiles = []
+    profiles.append("profiles/example.prof")
+    profiles.append("profiles/vmprof_cpuburn.prof")# cpuburn.py can be found in vmprof-python github repo
+    profiles.append("profiles/multithread_example.prof")
     expected_samples_count = {}
     expected_samples_count["profiles/example.prof"] = 2535
     expected_samples_count["profiles/vmprof_cpuburn.prof"] = 5551
+    expected_samples_count["profiles/multithread_example.prof"] = 436
     for profile in profiles:
         path = os.path.join(os.path.dirname(__file__), profile)
         c = convert_vmprof(path)

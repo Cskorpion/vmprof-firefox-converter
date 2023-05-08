@@ -274,7 +274,7 @@ class Thread:
     def dump_thread(self):
         thread = {}
         thread["name"] = self.name
-        thread["isMainThread"] = True
+        thread["isMainThread"] = False
         thread["processType"] = "default"
         thread["processName"] = "Parent Process"
         thread["processStartupTime"] = 0
