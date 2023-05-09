@@ -28,6 +28,20 @@
       },
       {
         "name": "Native",
+        "color": "lightblue",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "JIT",
+        "color": "purple",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "ASM",
         "color": "blue",
         "subcategories": [
           "Other"
@@ -935,7 +949,7 @@
   ],
   "threads": [
     {
-      "name": "Thread 1",
+      "name": "Thread 0",
       "isMainThread": false,
       "processType": "default",
       "processName": "Parent Process",
@@ -1080,10 +1094,6 @@
           2,
           3,
           4,
-          2,
-          2,
-          2,
-          2,
           5,
           6,
           7,
@@ -1101,9 +1111,13 @@
           19,
           20,
           21,
-          2,
-          2,
-          2
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28
         ],
         "innerWindowID": [
           0,
@@ -1136,41 +1150,17 @@
           0,
           0
         ],
-        "line": [
-          937,
-          980,
-          13,
-          0,
-          0,
-          14,
-          20,
-          19,
-          22,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          25,
-          26,
-          28
-        ],
         "length": 29
       },
       "funcTable": {
         "isJS": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
           false,
           false,
           false,
@@ -1216,6 +1206,13 @@
           false,
           false,
           false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
           false
         ],
         "name": [
@@ -1224,6 +1221,10 @@
           3,
           5,
           7,
+          3,
+          3,
+          3,
+          3,
           8,
           9,
           10,
@@ -1240,9 +1241,19 @@
           21,
           22,
           23,
-          24
+          24,
+          3,
+          3,
+          3
         ],
         "resource": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
           -1,
           -1,
           -1,
@@ -1270,27 +1281,72 @@
           1,
           1,
           4,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6,
-          6
+          null,
+          null,
+          4,
+          4,
+          4,
+          4,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          4,
+          4,
+          4
         ],
         "lineNumber": [
+          937,
+          980,
+          13,
+          null,
+          null,
+          14,
+          20,
+          19,
+          22,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          25,
+          26,
+          28
+        ],
+        "columnNumber": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1314,7 +1370,7 @@
           null,
           null
         ],
-        "length": 22
+        "length": 29
       },
       "resourceTable": {
         "type": [],
@@ -2056,7 +2112,7 @@
       ]
     },
     {
-      "name": "Thread 2",
+      "name": "Thread 1",
       "isMainThread": false,
       "processType": "default",
       "processName": "Parent Process",
@@ -2125,11 +2181,11 @@
           2,
           3,
           4,
-          2,
-          2,
-          2,
-          2,
-          2
+          5,
+          6,
+          7,
+          8,
+          9
         ],
         "innerWindowID": [
           0,
@@ -2143,22 +2199,15 @@
           0,
           0
         ],
-        "line": [
-          937,
-          980,
-          13,
-          0,
-          0,
-          14,
-          19,
-          20,
-          25,
-          26
-        ],
         "length": 10
       },
       "funcTable": {
         "isJS": [
+          false,
+          false,
+          false,
+          false,
+          false,
           false,
           false,
           false,
@@ -2170,6 +2219,11 @@
           false,
           false,
           false,
+          false,
+          false,
+          false,
+          false,
+          false,
           false
         ],
         "name": [
@@ -2177,9 +2231,19 @@
           2,
           3,
           5,
-          7
+          7,
+          3,
+          3,
+          3,
+          3,
+          3
         ],
         "resource": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
           -1,
           -1,
           -1,
@@ -2190,17 +2254,39 @@
           1,
           1,
           4,
-          6,
-          6
+          null,
+          null,
+          4,
+          4,
+          4,
+          4,
+          4
         ],
         "lineNumber": [
+          937,
+          980,
+          13,
+          null,
+          null,
+          14,
+          19,
+          20,
+          25,
+          26
+        ],
+        "columnNumber": [
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
           null,
           null
         ],
-        "length": 5
+        "length": 10
       },
       "resourceTable": {
         "type": [],

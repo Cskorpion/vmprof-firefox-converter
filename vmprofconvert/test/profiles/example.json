@@ -27,6 +27,20 @@
       },
       {
         "name": "Native",
+        "color": "lightblue",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "JIT",
+        "color": "purple",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "ASM",
         "color": "blue",
         "subcategories": [
           "Other"
@@ -42,7 +56,7 @@
   "counters": [],
   "threads": [
     {
-      "name": "Thread 1",
+      "name": "Thread 0",
       "isMainThread": false,
       "processType": "default",
       "processName": "Parent Process",
@@ -351,7 +365,7 @@
         "category": [
           0,
           0,
-          0,
+          2,
           0,
           0,
           0,

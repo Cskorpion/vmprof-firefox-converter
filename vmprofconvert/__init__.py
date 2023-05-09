@@ -1,4 +1,5 @@
 import vmprof
+from vmprof.reader import AssemblerCode, JittedCode
 import json
 
 def convert(path):
@@ -41,21 +42,29 @@ class Converter:
             else:
                 thread = self.threads[tid] = Thread() 
                 thread.tid = tid
-                thread.name = "Thread " + str(len(self.threads))# Threads seem to need different names
+                thread.name = "Thread " + str(len(self.threads) - 1)# Threads seem to need different names
             if stats.profile_lines:
                 indexes = range(0, len(stack_info), 2)
             else:
                 indexes = range(len(stack_info))
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
-                if addr_info is None:
-                    categorys.append(0)
+                if isinstance(stack_info[j], JittedCode):
+                    categorys.append(3)
                     funcname = stack_info[j]
                     filename = ""
-                else:
+                elif isinstance(stack_info[j], AssemblerCode):
+                    categorys.append(4)
+                    funcname = stack_info[j]
+                    filename = ""
+                elif addr_info is None: # Class NativeCode isnt used
+                    categorys.append(2)
+                    funcname = stack_info[j]
+                    filename = ""
+                elif isinstance(stack_info[j], int):
                     funcname = addr_info[1]
                     filename = addr_info[3]
-                    categorys.append(category_dict[addr_info[0]]) 
+                    categorys.append(category_dict[addr_info[0]])  
                 if stats.profile_lines:
                     frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1], filename))# vmprof line indexes are negative
                 else:
@@ -118,6 +127,21 @@ class Converter:
             },
             {
                 "name": "Native",
+                "color": "lightblue",
+                "subcategories": [
+                    "Other"
+                ]
+            },
+            {
+                "name": "JIT",
+                "color": "purple",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+            ,
+            {
+                "name": "ASM",
                 "color": "blue",
                 "subcategories": [
                     "Other"
@@ -166,6 +190,21 @@ class Converter:
             },
             {
                 "name": "Native",
+                "color": "lightblue",
+                "subcategories": [
+                    "Other"
+                ]
+            },
+            {
+                "name": "JIT",
+                "color": "purple",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+            ,
+            {
+                "name": "ASM",
                 "color": "blue",
                 "subcategories": [
                     "Other"
@@ -216,7 +255,7 @@ class Thread:
         self.stacktable_positions = {}
         self.functable = []# list of [stringtable_index, stringtable_index, int] funcname, filename, line  line == -1 if profile_lines == False
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index, category]   cat{0 = py, 1 = mem, 2 = native}
+        self.frametable = []# list of [functable_index, category]   cat{0 = py, 1 = mem, 2 = native, 3 = jit, 4 = asm}
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 

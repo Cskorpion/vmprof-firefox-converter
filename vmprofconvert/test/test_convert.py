@@ -16,7 +16,7 @@ class Dummystats():
         self.start_time = Dummytime(0)
     
     def get_addr_info(self, addr):
-        return ("py", addr, 0, "dummyfile.py")
+        return ("py", self.addr_dict[addr], 0, "dummyfile.py")
 
 class Dummytime():
     def __init__(self, time):
@@ -80,24 +80,26 @@ def test_sampleslist():
 def test_walksamples():
     c = Converter()
     vmprof_like_sample0 = (
-        ["function_a",
-         -7,
-         "function_b",
+        [0,# address
+         -7,# line
+         1,
          -17], # callstack with line numbers
          1, # samples count
          12345, #thread id
          0 # memory usage in kb
     )
     vmprof_like_sample1 = (
-        ["function_a",
+        [0,
          -7,
-         "function_c",
+         2,
          -117], # callstack with line numbers
          1, # samples count
          12345, #thread id
          0 # memory usage in kb
     )
-    c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
+    stats = Dummystats([vmprof_like_sample0, vmprof_like_sample1])
+    stats.addr_dict = {0: "function_a", 1: "function_b", 2: "function_c"}
+    c.walk_samples(stats)
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
     assert t.frametable == [[0], [1], [2]]# stringtableindex, line
@@ -113,26 +115,28 @@ def test_walksample_vmprof():
 def test_dumps_simple_profile():
     c = Converter()
     vmprof_like_sample0 = (
-        ["function_a",
-         -7,
-         "function_b",
+        [0,# address
+         -7,# line
+         1,
          -17], # callstack with line numbers
          1, # samples count
          12345, #thread id
          0 # memory usage in kb
     )
     vmprof_like_sample1 = (
-        ["function_a",
+        [0,
          -7,
-         "function_b",
+         1,
          -17,
-         "function_c",
+         2,
          -27], # callstack with line numbers
          1, # samples count
          12345, #thread id
          0 # memory usage in kb
     )
-    c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
+    stats = Dummystats([vmprof_like_sample0, vmprof_like_sample1])
+    stats.addr_dict = {0: "function_a", 1: "function_b", 2: "function_c"}
+    c.walk_samples(stats)
     jsonstr = c.dumps_static()
     path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     with open(path, "w") as output_file:
@@ -205,26 +209,28 @@ def test_profiles():
 def test_multiple_threads():
     c = Converter()
     vmprof_like_sample0 = (
-        ["function_a",
-        -7,
-        "function_b",
+        [0,# address
+        -7,# line
+        1,
         -17], # callstack with line numbers
         1, # samples count
         12345, #thread id
         0 # memory usage in kb
     )
     vmprof_like_sample1 = (
-        ["function_a",
+        [0,
         -7,
-        "function_b",
+        1,
         -17,
-        "function_c",
+        2,
         -27], # callstack with line numbers
         1, # samples count
         54321, #thread id
         0 # memory usage in kb
     )
-    c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
+    stats = Dummystats([vmprof_like_sample0, vmprof_like_sample1])
+    stats.addr_dict = {0: "function_a", 1: "function_b", 2: "function_c"}
+    c.walk_samples(stats)
     path = os.path.join(os.path.dirname(__file__), "profiles/dummy.json")
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(c.dumps_static()), indent=2))
