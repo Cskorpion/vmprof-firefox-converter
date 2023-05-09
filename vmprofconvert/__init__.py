@@ -214,9 +214,9 @@ class Thread:
         self.stringarray_positions = {}
         self.stacktable = []# list of [frameindex, stacktableindex_or_None]
         self.stacktable_positions = {}
-        self.functable = []# list of [stringtable_index, stringtable_index] funcname, filename
+        self.functable = []# list of [stringtable_index, stringtable_index, int] funcname, filename, line  line == -1 if profile_lines == False
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index, line, category]   line == -1 if profile_lines == False cat{0 = py, 1 = mem, 2 = native}
+        self.frametable = []# list of [functable_index, category]   cat{0 = py, 1 = mem, 2 = native}
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 
@@ -248,15 +248,15 @@ class Thread:
                 self.stacktable_positions[key] = result
                 return result
             
-    def add_func(self, func, file):
-        key = (func, file)
+    def add_func(self, func, file, line):
+        key = (func, file, line)
         if key in self.funtable_positions:
             return self.funtable_positions[key]
         else:
             stringtable_index_func = self.add_string(func)
             stringtable_index_file = self.add_string(file)
             result = len(self.functable)
-            self.functable.append([stringtable_index_func, stringtable_index_file])
+            self.functable.append([stringtable_index_func, stringtable_index_file, line])
             self.funtable_positions[key] = result
             return result
             
@@ -265,10 +265,10 @@ class Thread:
         if key in self.frametable_positions:
             return self.frametable_positions[key]
         else:
-            functable_index = self.add_func(string, file)
+            functable_index = self.add_func(string, file, line)
             #stringtable_index = self.add_string(string)
             frametable_index = len(self.frametable)
-            self.frametable.append([functable_index, line])
+            self.frametable.append([functable_index])
             self.frametable_positions[key] = frametable_index
             return frametable_index
         
@@ -315,8 +315,6 @@ class Thread:
         ftable["subcategory"] = [None for _ in self.frametable]
         ftable["func"] = [frame[0] for frame in self.frametable]
         ftable["innerWindowID"] = [0 for _ in self.frametable]
-        if self.frametable[0][1] != -1:
-            ftable["line"] = [frame[1] for frame in self.frametable]
         ftable["length"] = len(self.frametable)
         return ftable
 
@@ -326,8 +324,10 @@ class Thread:
         ftable["relevantForJS"] = [False for _ in self.functable]
         ftable["name"] = [func[0] for func in self.functable]
         ftable["resource"] = [-1 for _ in self.functable]
-        ftable["fileName"] = [func[1]  for func in self.functable]
-        ftable["lineNumber"] = [None for _ in self.functable]
+        linenumbers, filenames = self.get_processed_filelines()
+        ftable["fileName"] = filenames
+        ftable["lineNumber"] = linenumbers
+        ftable["columnNumber"] = [None for _ in self.functable]
         ftable["length"] = len(self.functable)
         return ftable
 
@@ -352,3 +352,22 @@ class Thread:
     
     def dump_stringarray(self):
         return [str(string) for string in self.stringarray]
+    
+    def get_processed_filelines(self):
+        linenumbers = []
+        filenames = []
+        if self.functable[0][2] != -1:
+            for func in self.functable:
+                if self.stringarray[func[1]] is "-":
+                    linenumbers.append(None)
+                else:
+                    linenumbers.append(func[2])
+        else:
+            linenumbers = [None for _ in self.functable]
+        for func in self.functable:
+            if self.stringarray[func[1]] is "-":
+                filenames.append(None)
+            else:
+                filenames.append(func[1])
+        
+        return linenumbers, filenames

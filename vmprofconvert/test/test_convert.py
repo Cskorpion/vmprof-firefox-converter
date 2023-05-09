@@ -57,17 +57,17 @@ def test_frametable():
     assert frameindex0 == frameindex1 == 0
     frameindex2 = t.add_frame("goose", -1, "dummyfile.py")
     assert frameindex2 == frameindex1 + 1
-    assert t.frametable == [[0, -1],[1, -1]]
+    assert t.frametable == [[0],[1]]
     assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
 
 def test_functable():
     t = Thread()
-    funcindex0 = t.add_func("function_a", "dummyfile.py")# func, file
-    funcindex1 = t.add_func("function_a", "dummyfile.py")
+    funcindex0 = t.add_func("function_a", "dummyfile.py", 7)# func, file, line
+    funcindex1 = t.add_func("function_a", "dummyfile.py", 7)
     assert funcindex0 == funcindex1 == 0
-    funcindex2 = t.add_func("function_b", "dummyfile.py")
+    funcindex2 = t.add_func("function_b", "dummyfile.py", 17)
     assert funcindex2 == funcindex1 + 1
-    assert t.functable == [[0,1],[2,1]]
+    assert t.functable == [[0, 1, 7],[2, 1, 17]]
     assert t.stringarray == ["function_a", "dummyfile.py" , "function_b"]
 
 def test_sampleslist():
@@ -100,7 +100,7 @@ def test_walksamples():
     c.walk_samples(Dummystats([vmprof_like_sample0, vmprof_like_sample1]))
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
-    assert t.frametable == [[0, 7], [1, 17], [2, 117]]# stringtableindex, line
+    assert t.frametable == [[0], [1], [2]]# stringtableindex, line
     assert t.stacktable == [[0, None, 0], [1, 0, 0], [2, 0, 0]]
     assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
 
@@ -244,3 +244,13 @@ def test_dumps_vmprof_memory():
     assert memory_samples["count"][1] == 11972000 # Firefox wont show memory unless two samples are not zero
     assert sum(memory_samples["count"][2:]) == 0
     assert len(memory_samples["count"]) == 5551
+
+def test_dumps_filename_lines():
+    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
+    jsonstr = convert_stats(path)
+    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.json")
+    profile = json.loads(jsonstr)
+    stringarray = profile["threads"][0]["stringArray"]
+    functable = profile["threads"][0]["funcTable"] 
+    native_file_index =  stringarray.index("-")
+    assert native_file_index not in functable["fileName"]
