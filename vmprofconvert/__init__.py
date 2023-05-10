@@ -49,26 +49,32 @@ class Converter:
                 indexes = range(len(stack_info))
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
-                if isinstance(stack_info[j], JittedCode):
-                    categorys.append(3)
-                    funcname = stack_info[j]
-                    filename = ""
-                elif isinstance(stack_info[j], AssemblerCode):
-                    categorys.append(4)
-                    funcname = stack_info[j]
-                    filename = ""
-                elif addr_info is None: # Class NativeCode isnt used
-                    categorys.append(2)
-                    funcname = stack_info[j]
-                    filename = ""
-                elif isinstance(stack_info[j], int):
+                if isinstance(stack_info[j], JittedCode):# get_addr_info gives info for jit frames
+                    categorys.append(3)#jit
                     funcname = addr_info[1]
                     filename = addr_info[3]
-                    categorys.append(category_dict[addr_info[0]])  
-                if stats.profile_lines:
-                    frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1], filename))# vmprof line indexes are negative
-                else:
+                    if addr_info is not None and int(addr_info[2]) >= 0:
+                        frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
+                    else:
+                        frames.append(thread.add_frame(funcname, -1, filename))
+                elif isinstance(stack_info[j], AssemblerCode):
+                    categorys.append(4)#asm
+                    funcname = stack_info[j]
+                    filename = ""
                     frames.append(thread.add_frame(funcname, -1, filename))
+                elif addr_info is None: # Class NativeCode isnt used
+                    categorys.append(2)#native
+                    funcname = stack_info[j]
+                    filename = ""
+                    frames.append(thread.add_frame(funcname, -1, filename))
+                elif isinstance(stack_info[j], int):
+                    categorys.append(category_dict[addr_info[0]])  
+                    funcname = addr_info[1]
+                    filename = addr_info[3]
+                    if stats.profile_lines:
+                        frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1], filename))# vmprof python line indexes are negative
+                    else:
+                        frames.append(thread.add_frame(funcname, -1, filename))
             stackindex = thread.add_stack(frames, categorys)
             thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
             if stats.profile_memory == True:
@@ -395,14 +401,14 @@ class Thread:
     def get_processed_filelines(self):
         linenumbers = []
         filenames = []
-        if self.functable[0][2] != -1:
-            for func in self.functable:
-                if self.stringarray[func[1]] is "-":
-                    linenumbers.append(None)
-                else:
-                    linenumbers.append(func[2])
-        else:
-            linenumbers = [None for _ in self.functable]
+        for func in self.functable:
+            if self.stringarray[func[1]] is "-":
+                linenumbers.append(None)
+            elif func[2] is -1:
+                linenumbers.append(None)
+            else:
+                linenumbers.append(func[2])
+
         for func in self.functable:
             if self.stringarray[func[1]] is "-":
                 filenames.append(None)
