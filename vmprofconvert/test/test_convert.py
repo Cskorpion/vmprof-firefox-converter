@@ -1,6 +1,7 @@
 import os
 import json
 import vmprof
+from vmprof.reader import JittedCode, AssemblerCode
 from vmprofconvert import convert
 from vmprofconvert import convert_vmprof
 from vmprofconvert import convert_stats
@@ -245,7 +246,6 @@ def test_multiple_threads():
 def test_dumps_vmprof_memory():
     path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     jsonstr = convert_stats(path)
-    path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.json")
     profile = json.loads(jsonstr)
     memory_samples = profile["counters"][0]["sampleGroups"][0]["samples"]
     assert memory_samples["count"][0] == 11972000
@@ -262,3 +262,40 @@ def test_dumps_filename_lines():
     functable = profile["threads"][0]["funcTable"] 
     native_file_index =  stringarray.index("-")
     assert native_file_index not in functable["fileName"]
+
+def test_jit_asm_inline():
+    c = Converter()
+    vmprof_like_sample0 = (
+        [0,
+         0,# JIT/ASM/Native Frames have line == 0 in Dummystats
+        JittedCode(0),# address
+        7,# line
+        JittedCode(1),# address
+        17,# line
+        AssemblerCode(2),
+        -117], # callstack with line numbers
+        1, # samples count
+        12345, #thread id
+        0 # memory usage in kb
+    )
+    stats = Dummystats([vmprof_like_sample0])
+    stats.addr_dict = {0: "function_a", 1: "function_b", 2: "function_c"}
+    c.walk_samples(stats)
+    path = os.path.join(os.path.dirname(__file__), "profiles/dummy.json")
+    with open(path, "w") as output_file:
+        output_file.write(json.dumps(json.loads(c.dumps_static()), indent=2))
+    thread = c.threads[12345]
+    print(thread.frametable)
+    assert thread.stacktable == [[0, None, 6], [1, 0, 5]]
+
+
+def test_pypy_pystone():
+    path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof")
+    jsonstr = convert_stats(path)
+    path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.json")
+    with open(path, "w") as output_file:
+        output_file.write(json.dumps(json.loads(jsonstr), indent=2))
+    profile = json.loads(jsonstr)
+    stacktable = profile["threads"][0]["stackTable"]     
+    assert 3 not in stacktable["category"]
+    assert 4 not in stacktable["category"]

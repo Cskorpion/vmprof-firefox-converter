@@ -50,18 +50,42 @@ class Converter:
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
                 if isinstance(stack_info[j], JittedCode):# get_addr_info gives info for jit frames
-                    categorys.append(3)#jit
                     funcname = addr_info[1]
                     filename = addr_info[3]
-                    if addr_info is not None and int(addr_info[2]) >= 0:
-                        frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
-                    else:
-                        frames.append(thread.add_frame(funcname, -1, filename))
+                    write_jit_frame = True
+
+                    if(len(categorys) > 0):
+                        last_func_index = thread.frametable[frames[-1]][0]
+
+                        last_funcname_index = thread.functable[last_func_index][0]
+                        last_filename_index = thread.functable[last_func_index][1]
+                        last_funcname = thread.stringarray[last_funcname_index]
+                        last_filename = thread.stringarray[last_filename_index]
+
+                        if categorys[-1] == 0 and last_filename == filename and last_funcname == funcname:# if last frame is py and current is jit and both have the same function => replace with mixed frame
+                            write_jit_frame = False
+                            frames.pop()
+                            categorys.pop()
+                            categorys.append(6)#mixed
+                            if addr_info is not None and int(addr_info[2]) >= 0:
+                                frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
+                            else:
+                                frames.append(thread.add_frame(funcname, -1, filename))
+        
+                        if write_jit_frame:
+                            categorys.append(3)#jit
+                            if addr_info is not None and int(addr_info[2]) >= 0:
+                                frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
+                            else:
+                                frames.append(thread.add_frame(funcname, -1, filename))
                 elif isinstance(stack_info[j], AssemblerCode):
-                    categorys.append(4)#asm
-                    funcname = stack_info[j]
-                    filename = ""
-                    frames.append(thread.add_frame(funcname, -1, filename))
+                    if len(categorys) > 0 and categorys[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
+                        categorys.pop()
+                        categorys.append(5)#jit inlined
+                    else:# asm disabled
+                        pass
+                        #categorys.append(4)#asm
+                        #frames.append(thread.add_frame(stack_info[j], -1, ""))
                 elif addr_info is None: # Class NativeCode isnt used
                     categorys.append(2)#native
                     funcname = stack_info[j]
@@ -116,44 +140,7 @@ class Converter:
         static_meta["debug"] = False
         static_meta["version"] = 27
         static_meta["importedFrom"] = "VMProf"
-        static_meta["categories"] = [
-            {
-                "name": "Python",
-                "color": "yellow",
-                "subcategories": [
-                    "Other"
-                ]
-            },
-            {
-                "name": "Memory",
-                "color": "red",
-                "subcategories": [
-                    "Other"
-                ]
-            },
-            {
-                "name": "Native",
-                "color": "lightblue",
-                "subcategories": [
-                    "Other"
-                ]
-            },
-            {
-                "name": "JIT",
-                "color": "purple",
-                "subcategories": [
-                    "Other"
-                ]
-            }
-            ,
-            {
-                "name": "ASM",
-                "color": "blue",
-                "subcategories": [
-                    "Other"
-                ]
-            }
-        ]
+        static_meta["categories"] = self.dump_categorys()
         static_meta["preprocessedProfileVersion"] = 47
         static_meta["symbolicated"] = True
         static_meta["markerSchema"] = []
@@ -179,36 +166,52 @@ class Converter:
         vmprof_meta["debug"] = False
         vmprof_meta["version"] = 27
         vmprof_meta["importedFrom"] = "VMProf"
-        vmprof_meta["categories"] = [
+        vmprof_meta["categories"] = self.dump_categorys()
+        vmprof_meta["preprocessedProfileVersion"] = 47
+        vmprof_meta["symbolicated"] = True
+        vmprof_meta["markerSchema"] = []
+        
+        return vmprof_meta
+    
+    def dump_categorys(self):
+        categorys = []
+        categorys.append(
             {
                 "name": "Python",
                 "color": "yellow",
                 "subcategories": [
                     "Other"
                 ]
-            },
+            }
+        )
+        categorys.append(
             {
                 "name": "Memory",
                 "color": "red",
                 "subcategories": [
                     "Other"
                 ]
-            },
+            }
+        )    
+        categorys.append(
             {
                 "name": "Native",
                 "color": "lightblue",
                 "subcategories": [
                     "Other"
                 ]
-            },
+            }
+        )    
+        categorys.append(
             {
                 "name": "JIT",
-                "color": "purple",
+                "color": "green",
                 "subcategories": [
                     "Other"
                 ]
             }
-            ,
+        )    
+        categorys.append(
             {
                 "name": "ASM",
                 "color": "blue",
@@ -216,13 +219,27 @@ class Converter:
                     "Other"
                 ]
             }
-        ]
-        vmprof_meta["preprocessedProfileVersion"] = 47
-        vmprof_meta["symbolicated"] = True
-        vmprof_meta["markerSchema"] = []
-        
-        return vmprof_meta
-    
+        )
+        categorys.append(
+            {
+                "name": "JIT(Inlined)",
+                "color": "purple",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        )   
+        categorys.append(
+            {
+                "name": "Mixed",
+                "color": "orange",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        )
+        return categorys
+           
     def dump_counters(self):
         counter = {}
         counter["name"] = "Memory"
@@ -257,11 +274,11 @@ class Thread:
     def __init__(self):
         self.stringarray = []
         self.stringarray_positions = {}
-        self.stacktable = []# list of [frameindex, stacktableindex_or_None]
+        self.stacktable = []# list of [frameindex, stacktableindex_or_None, category] cat{0 = py, 1 = mem, 2 = native, 3 = jit, 4 = asm, 5 =  jit_inline, 6 = mixed}
         self.stacktable_positions = {}
         self.functable = []# list of [stringtable_index, stringtable_index, int] funcname, filename, line  line == -1 if profile_lines == False
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index, category]   cat{0 = py, 1 = mem, 2 = native, 3 = jit, 4 = asm}
+        self.frametable = []# list of [functable_index]   
         self.frametable_positions = {}# key is string
         self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
 
@@ -402,15 +419,15 @@ class Thread:
         linenumbers = []
         filenames = []
         for func in self.functable:
-            if self.stringarray[func[1]] is "-":
+            if self.stringarray[func[1]] == "-":
                 linenumbers.append(None)
-            elif func[2] is -1:
+            elif func[2] == -1:
                 linenumbers.append(None)
             else:
                 linenumbers.append(func[2])
 
         for func in self.functable:
-            if self.stringarray[func[1]] is "-":
+            if self.stringarray[func[1]] == "-":
                 filenames.append(None)
             else:
                 filenames.append(func[1])

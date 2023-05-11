@@ -35,7 +35,7 @@
       },
       {
         "name": "JIT",
-        "color": "purple",
+        "color": "green",
         "subcategories": [
           "Other"
         ]
@@ -43,6 +43,20 @@
       {
         "name": "ASM",
         "color": "blue",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "JIT(Inlined)",
+        "color": "purple",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "Mixed",
+        "color": "orange",
         "subcategories": [
           "Other"
         ]
