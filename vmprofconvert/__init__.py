@@ -57,50 +57,15 @@ class Converter:
                 indexes = range(len(stack_info))
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
-                if isinstance(stack_info[j], JittedCode):# get_addr_info gives info for jit frames
-                    funcname = addr_info[1]
-                    filename = addr_info[3]
-                    write_jit_frame = True
-
-                    if(len(categorys) > 0):
-                        last_func_index = thread.frametable[frames[-1]][0]
-
-                        last_funcname_index = thread.functable[last_func_index][0]
-                        last_filename_index = thread.functable[last_func_index][1]
-                        last_funcname = thread.stringarray[last_funcname_index]
-                        last_filename = thread.stringarray[last_filename_index]
-
-                        if categorys[-1] == 0 and last_filename == filename and last_funcname == funcname:# if last frame is py and current is jit and both have the same function => replace with mixed frame
-                            write_jit_frame = False
-                            frames.pop()
-                            categorys.pop()
-                            categorys.append(CATEGORY_MIXED)#mixed
-                            if addr_info is not None and int(addr_info[2]) >= 0:
-                                frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
-                            else:
-                                frames.append(thread.add_frame(funcname, -1, filename))
-        
-                        if write_jit_frame:
-                            categorys.append(CATEGORY_JIT)#jit
-                            if addr_info is not None and int(addr_info[2]) >= 0:
-                                frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
-                            else:
-                                frames.append(thread.add_frame(funcname, -1, filename))
+                if isinstance(stack_info[j], JittedCode):
+                    frames.append(self.add_jit_frame(thread, categorys, addr_info, frames))
                 elif isinstance(stack_info[j], AssemblerCode):
-                    if len(categorys) > 0 and categorys[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
-                        categorys.pop()
-                        categorys.append(CATEGORY_JIT_INLINED)#jit inlined
-                    else:# asm disabled
-                        pass
-                        #categorys.append(CATEGORY_ASM)#asm
-                        #frames.append(thread.add_frame(stack_info[j], -1, ""))
+                    self.check_asm_frame(categorys)
                 elif addr_info is None: # Class NativeCode isnt used
-                    categorys.append(CATEGORY_NATIVE)#native
-                    funcname = stack_info[j]
-                    filename = ""
-                    frames.append(thread.add_frame(funcname, -1, filename))
-                elif isinstance(stack_info[j], int):
-                    categorys.append(category_dict[addr_info[0]])  
+                    categorys.append(CATEGORY_NATIVE)
+                    frames.append(self.add_native_frame(thread, stack_info[j]))                   
+                elif isinstance(stack_info[j], int): 
+                    categorys.append(category_dict[addr_info[0]] )  
                     funcname = addr_info[1]
                     filename = addr_info[3]
                     if stats.profile_lines:
@@ -111,6 +76,47 @@ class Converter:
             thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
             if stats.profile_memory == True:
                 self.counters.append([i * sampletime, memory * 1000])
+    
+    def add_jit_frame(self, thread, categorys, addr_info, frames):
+        funcname = addr_info[1]
+        filename = addr_info[3]
+        last_funcname, last_filename = self.get_last_func_file(thread, frames) 
+        
+        if len(categorys) > 0 and categorys[-1] == 0 and last_filename == filename and last_funcname == funcname:# if last frame is py and current is jit and both have the same function => replace with mixed frame
+            frames.pop()
+            categorys.pop()
+            categorys.append(CATEGORY_MIXED)
+        else:
+            categorys.append(CATEGORY_JIT)
+        if addr_info is not None and int(addr_info[2]) >= 0:
+            return thread.add_frame(funcname, addr_info[2], filename)# vmprof jit line indexes are positive
+        else:
+            return thread.add_frame(funcname, -1, filename)
+
+    def add_native_frame(self, thread, stack_info):
+        funcname = stack_info
+        filename = ""
+        frameindex = thread.add_frame(funcname, -1, filename)
+        return frameindex
+    
+    def check_asm_frame(self, categorys):
+        if len(categorys) > 0 and categorys[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
+            categorys.pop()
+            categorys.append(CATEGORY_JIT_INLINED)
+        else:# asm disabled
+            pass
+            #categorys.append(CATEGORY_ASM)#asm
+            #frames.append(thread.add_frame(stack_info[j], -1, ""))
+
+    def get_last_func_file(self, thread, frames):
+        if len(frames) == 0:
+            return "", ""
+        last_func_index = thread.frametable[frames[-1]][0]
+        last_funcname_index = thread.functable[last_func_index][0]
+        last_filename_index = thread.functable[last_func_index][1]
+        last_funcname = thread.stringarray[last_funcname_index]
+        last_filename = thread.stringarray[last_filename_index]
+        return last_funcname, last_filename
 
     def dumps_static(self):
         processed_profile = {}

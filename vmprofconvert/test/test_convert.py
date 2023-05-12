@@ -7,6 +7,7 @@ from vmprofconvert import convert_vmprof
 from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
+from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
 
 class Dummystats():
     def __init__(self, profiles):
@@ -43,12 +44,11 @@ def test_stringarray():
 def test_stacktable():
     t = Thread()
     assert t.add_stack([], 0) is None
-    stackindex0 = t.add_stack([1,2,3], [0,0,0])# Top of Stack is 3    [stack], [categorys]
-    stackindex1 = t.add_stack([1,2,3], [0,0,0])
+    stackindex0 = t.add_stack([1,2,3], [CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_PYTHON])# Top of Stack is 3    [stack], [categorys]
+    stackindex1 = t.add_stack([1,2,3], [CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_PYTHON])
     assert stackindex0 == stackindex1 == 2
-    assert t.stacktable == [[1,None,0], [2,0,0], [3,1,0]]
-    stackindex2 = t.add_stack([1,2,3,4], [0,0,0,1])
-    print(t.stacktable)
+    assert t.stacktable == [[1,None, CATEGORY_PYTHON], [2,0, CATEGORY_PYTHON], [3,1, CATEGORY_PYTHON]]
+    stackindex2 = t.add_stack([1,2,3,4], [CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_NATIVE])
     assert stackindex2 == stackindex1 + 1
 
 def test_frametable():
@@ -104,7 +104,7 @@ def test_walksamples():
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
     assert t.frametable == [[0], [1], [2]]# stringtableindex, line
-    assert t.stacktable == [[0, None, 0], [1, 0, 0], [2, 0, 0]]
+    assert t.stacktable == [[0, None, CATEGORY_PYTHON], [1, 0, CATEGORY_PYTHON], [2, 0, CATEGORY_PYTHON]]
     assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
 
 def test_walksample_vmprof():
@@ -198,7 +198,7 @@ def test_profiles():
     expected_samples_count = {}
     expected_samples_count["profiles/example.prof"] = 2535
     expected_samples_count["profiles/vmprof_cpuburn.prof"] = 5551
-    expected_samples_count["profiles/multithread_example.prof"] = 436
+    expected_samples_count["profiles/multithread_example.prof"] = 27688
     expected_samples_count["profiles/pypy-pystone.prof"] = 375
     for profile in profiles:
         path = os.path.join(os.path.dirname(__file__), profile)
@@ -285,9 +285,8 @@ def test_jit_asm_inline():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(c.dumps_static()), indent=2))
     thread = c.threads[12345]
-    print(thread.frametable)
-    assert thread.stacktable == [[0, None, 6], [1, 0, 5]]
-
+    #print(thread.frametable)
+    assert thread.stacktable == [[0, None, CATEGORY_MIXED], [1, 0, CATEGORY_JIT_INLINED]]
 
 def test_pypy_pystone():
     path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof")
@@ -297,5 +296,49 @@ def test_pypy_pystone():
         output_file.write(json.dumps(json.loads(jsonstr), indent=2))
     profile = json.loads(jsonstr)
     stacktable = profile["threads"][0]["stackTable"]     
-    assert 3 not in stacktable["category"]
-    assert 4 not in stacktable["category"]
+    assert CATEGORY_JIT not in stacktable["category"]
+    assert CATEGORY_ASM not in stacktable["category"]
+
+def test_check_asm_frame():
+    categorys = []
+    c = Converter()
+    c.check_asm_frame(categorys)
+    assert categorys == []# asm frames currently disabled 
+    categorys.append(CATEGORY_JIT)
+    c.check_asm_frame(categorys)
+    assert categorys == [CATEGORY_JIT_INLINED]# jit frame + asm frame => jit_inlined frame
+
+def test_add_native_frame():
+    c = Converter()
+    thread = Thread()
+    stack_info = "native_function"
+    c.add_native_frame(thread, stack_info)
+    assert thread.frametable == [[0]]
+    assert thread.functable == [[0, 1, -1]]
+    assert thread.stringarray == [stack_info, ""]
+
+def test_add_jit_frame_to_mixed():
+    c = Converter()
+    thread = Thread()
+    categorys =  [CATEGORY_PYTHON]
+    addr_info_jit = ("", "function_a", 7, "dummyfile.py")
+    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3])
+    frames = [frame_index0]
+    frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit, frames)
+    frames.append(frame_index1)
+    assert categorys == [CATEGORY_MIXED]
+    assert frames == [0]
+
+def test_add_jit_frame_not_mixed():
+    c = Converter()
+    thread = Thread()
+    categorys =  []
+    frames = []
+    addr_info_jit0 = ("", "function_a", 7, "dummyfile.py")
+    addr_info_jit1 = ("", "function_b", 17, "dummyfile.py")
+    frame_index0 = c.add_jit_frame(thread, categorys, addr_info_jit0, frames)
+    frames.append(frame_index0)
+    frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit1, frames)
+    frames.append(frame_index1)
+    assert categorys == [CATEGORY_JIT, CATEGORY_JIT]
+    assert frames == [0,1]
