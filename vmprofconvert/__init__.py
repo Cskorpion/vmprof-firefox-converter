@@ -2,6 +2,14 @@ import vmprof
 from vmprof.reader import AssemblerCode, JittedCode
 import json
 
+CATEGORY_PYTHON = 0
+CATEGORY_MEMORY = 1
+CATEGORY_NATIVE = 2
+CATEGORY_JIT = 3
+CATEGORY_ASM = 4
+CATEGORY_JIT_INLINED = 5
+CATEGORY_MIXED = 6
+
 def convert(path):
     stats = vmprof.read_profile(path)
     c = Converter()
@@ -31,8 +39,8 @@ class Converter:
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
         category_dict = {}
-        category_dict["py"] = 0
-        category_dict["n"] = 2
+        category_dict["py"] = CATEGORY_PYTHON
+        category_dict["n"] = CATEGORY_NATIVE
         for i, sample in enumerate(stats.profiles):
             frames = []
             categorys = []
@@ -66,14 +74,14 @@ class Converter:
                             write_jit_frame = False
                             frames.pop()
                             categorys.pop()
-                            categorys.append(6)#mixed
+                            categorys.append(CATEGORY_MIXED)#mixed
                             if addr_info is not None and int(addr_info[2]) >= 0:
                                 frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
                             else:
                                 frames.append(thread.add_frame(funcname, -1, filename))
         
                         if write_jit_frame:
-                            categorys.append(3)#jit
+                            categorys.append(CATEGORY_JIT)#jit
                             if addr_info is not None and int(addr_info[2]) >= 0:
                                 frames.append(thread.add_frame(funcname, addr_info[2], filename))# vmprof jit line indexes are positive
                             else:
@@ -81,13 +89,13 @@ class Converter:
                 elif isinstance(stack_info[j], AssemblerCode):
                     if len(categorys) > 0 and categorys[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
                         categorys.pop()
-                        categorys.append(5)#jit inlined
+                        categorys.append(CATEGORY_JIT_INLINED)#jit inlined
                     else:# asm disabled
                         pass
-                        #categorys.append(4)#asm
+                        #categorys.append(CATEGORY_ASM)#asm
                         #frames.append(thread.add_frame(stack_info[j], -1, ""))
                 elif addr_info is None: # Class NativeCode isnt used
-                    categorys.append(2)#native
+                    categorys.append(CATEGORY_NATIVE)#native
                     funcname = stack_info[j]
                     filename = ""
                     frames.append(thread.add_frame(funcname, -1, filename))
@@ -148,7 +156,7 @@ class Converter:
 
     def dump_vmprof_meta(self, stats):
         vmprof_meta = {}
-        ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))# wrong if there are multiple threads
+        ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))
         
         vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
         vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
