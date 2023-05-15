@@ -342,3 +342,17 @@ def test_add_jit_frame_not_mixed():
     frames.append(frame_index1)
     assert categorys == [CATEGORY_JIT, CATEGORY_JIT]
     assert frames == [0,1]
+
+def test_add_vmprof_frame():
+    # def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, j):# native or python frame
+    c = Converter()
+    thread = Thread()
+    addr_info_py = ("py", "function_a", 7, "dummyfile.py")
+    addr_info_n = ("n", "function_b", 0, "dummyfile.py")
+    stack_info = [0, -7, 1, 0]# addr, line, addr, line
+    profile_lines = True
+    c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, 0)
+    c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, 2)
+    assert thread.frametable == [[0], [1]]
+    assert thread.functable == [[0, 1, 7], [2, 1, 0]]
+    assert thread.stringarray == ["function_a", "dummyfile.py", "function_b"]

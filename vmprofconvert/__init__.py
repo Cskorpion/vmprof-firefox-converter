@@ -66,17 +66,21 @@ class Converter:
                     frames.append(self.add_native_frame(thread, stack_info[j]))                   
                 elif isinstance(stack_info[j], int): 
                     categorys.append(category_dict[addr_info[0]] )  
-                    funcname = addr_info[1]
-                    filename = addr_info[3]
-                    if stats.profile_lines:
-                        frames.append(thread.add_frame(funcname, -1 * stack_info[j + 1], filename))# vmprof python line indexes are negative
-                    else:
-                        frames.append(thread.add_frame(funcname, -1, filename))
+                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines, j))
+                   
             stackindex = thread.add_stack(frames, categorys)
             thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
             if stats.profile_memory == True:
                 self.counters.append([i * sampletime, memory * 1000])
-    
+
+    def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, j):# native or python frame
+        funcname = addr_info[1]
+        filename = addr_info[3]
+        if lineprof:
+            return thread.add_frame(funcname, -1 * stack_info[j + 1], filename)# vmprof python line indexes are negative
+        else:
+            return thread.add_frame(funcname, -1, filename)
+
     def add_jit_frame(self, thread, categorys, addr_info, frames):
         funcname = addr_info[1]
         filename = addr_info[3]
