@@ -1,5 +1,7 @@
 import vmprof
 from vmprof.reader import AssemblerCode, JittedCode
+from vmprofconvert.processedformat import check_processed_profile
+
 import json
 
 CATEGORY_PYTHON = 0
@@ -129,6 +131,7 @@ class Converter:
         processed_profile["pages"] = []
         processed_profile["counters"] = []
         processed_profile["threads"] = self.dump_threads()
+        check_processed_profile(processed_profile)
         return json.dumps(processed_profile)
     
     def dumps_vmprof(self, stats):
@@ -141,6 +144,7 @@ class Converter:
         else:
             processed_profile["counters"] = []
         processed_profile["threads"] = self.dump_threads()
+        check_processed_profile(processed_profile)
         return json.dumps(processed_profile)
     
     def dump_threads(self):
@@ -285,7 +289,6 @@ class Converter:
             mem_diff.append([ctr[0], (current_mem - ctr[1])])
             current_mem = ctr[1]
         return mem_diff
-
 
 
 class Thread:
