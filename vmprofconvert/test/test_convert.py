@@ -195,11 +195,13 @@ def test_profiles():
     profiles.append("profiles/vmprof_cpuburn.prof")# cpuburn.py can be found in vmprof-python github repo
     profiles.append("profiles/multithread_example.prof")
     profiles.append("profiles/pypy-pystone.prof")
+    profiles.append("profiles/example_with_lines.prof")
     expected_samples_count = {}
     expected_samples_count["profiles/example.prof"] = 2535
     expected_samples_count["profiles/vmprof_cpuburn.prof"] = 5551
     expected_samples_count["profiles/multithread_example.prof"] = 27688
     expected_samples_count["profiles/pypy-pystone.prof"] = 375
+    expected_samples_count["profiles/example_with_lines.prof"] = 3431
     for profile in profiles:
         path = os.path.join(os.path.dirname(__file__), profile)
         c = convert_vmprof(path)
