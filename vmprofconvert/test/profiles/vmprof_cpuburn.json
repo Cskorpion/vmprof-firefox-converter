@@ -66,7 +66,15 @@
     "symbolicated": true,
     "markerSchema": []
   },
-  "libs": [],
+  "libs": [
+    {
+      "name": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "path": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "debugName": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "debugPath": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "arch": ""
+    }
+  ],
   "pages": [],
   "counters": [
     {
@@ -11207,6 +11215,33 @@
         "data": [],
         "length": 0
       },
+      "nativeSymbols": {
+        "libIndex": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "address": [
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        "name": [
+          2,
+          4,
+          5,
+          6
+        ],
+        "functionSize": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "length": 4
+      },
       "frameTable": {
         "address": [
           -1,
@@ -11454,6 +11489,88 @@
           0,
           0
         ],
+        "nativeSymbol": [
+          -1,
+          0,
+          1,
+          2,
+          3,
+          -1,
+          3,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          2,
+          3,
+          -1,
+          -1,
+          -1,
+          -1,
+          0,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          2
+        ],
+        "line": [
+          57,
+          44,
+          31,
+          23,
+          18,
+          0,
+          17,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          22,
+          15,
+          0,
+          0,
+          0,
+          0,
+          45,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          24
+        ],
         "length": 39
       },
       "funcTable": {
@@ -11582,6 +11699,26 @@
         ],
         "resource": [
           -1,
+          0,
+          1,
+          2,
+          3,
+          -1,
+          3,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          2,
+          3,
+          -1,
+          -1,
+          -1,
+          -1,
+          0,
           -1,
           -1,
           -1,
@@ -11599,27 +11736,7 @@
           -1,
           -1,
           -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1
+          2
         ],
         "fileName": [
           null,
@@ -11747,8 +11864,31 @@
         "length": 39
       },
       "resourceTable": {
-        "type": [],
-        "length": 0
+        "lib": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "name": [
+          2,
+          4,
+          5,
+          6
+        ],
+        "host": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "type": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "length": 4
       },
       "stackTable": {
         "frame": [

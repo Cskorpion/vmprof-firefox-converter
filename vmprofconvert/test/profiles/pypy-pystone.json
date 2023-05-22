@@ -66,7 +66,15 @@
     "symbolicated": true,
     "markerSchema": []
   },
-  "libs": [],
+  "libs": [
+    {
+      "name": "/home/cfbolz/projects/yet-another-checkout/lib-python/3/test/pystone.py",
+      "path": "/home/cfbolz/projects/yet-another-checkout/lib-python/3/test/pystone.py",
+      "debugName": "/home/cfbolz/projects/yet-another-checkout/lib-python/3/test/pystone.py",
+      "debugPath": "/home/cfbolz/projects/yet-another-checkout/lib-python/3/test/pystone.py",
+      "arch": ""
+    }
+  ],
   "pages": [],
   "counters": [],
   "threads": [
@@ -84,6 +92,41 @@
       "markers": {
         "data": [],
         "length": 0
+      },
+      "nativeSymbols": {
+        "libIndex": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "address": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        "name": [
+          14,
+          16,
+          17,
+          19,
+          20,
+          23
+        ],
+        "functionSize": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "length": 6
       },
       "frameTable": {
         "address": [
@@ -248,6 +291,60 @@
           0,
           0
         ],
+        "nativeSymbol": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          0,
+          1,
+          2,
+          3,
+          4,
+          -1,
+          -1,
+          5,
+          -1,
+          -1
+        ],
+        "line": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          86,
+          219,
+          240,
+          181,
+          232,
+          -1,
+          -1,
+          160,
+          -1,
+          -1
+        ],
         "length": 25
       },
       "funcTable": {
@@ -348,14 +445,14 @@
           -1,
           -1,
           -1,
+          0,
+          1,
+          2,
+          3,
+          4,
           -1,
           -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
-          -1,
+          5,
           -1,
           -1
         ],
@@ -402,14 +499,14 @@
           null,
           null,
           null,
-          "86",
-          "219",
-          "240",
-          "181",
-          "232",
+          86,
+          219,
+          240,
+          181,
+          232,
           null,
           null,
-          "160",
+          160,
           null,
           null
         ],
@@ -443,8 +540,39 @@
         "length": 25
       },
       "resourceTable": {
-        "type": [],
-        "length": 0
+        "lib": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "name": [
+          14,
+          16,
+          17,
+          19,
+          20,
+          23
+        ],
+        "host": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "type": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "length": 6
       },
       "stackTable": {
         "frame": [

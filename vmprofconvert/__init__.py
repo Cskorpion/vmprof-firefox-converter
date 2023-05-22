@@ -1,8 +1,7 @@
 import vmprof
+import json
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
-
-import json
 
 CATEGORY_PYTHON = 0
 CATEGORY_MEMORY = 1
@@ -35,6 +34,19 @@ class Converter:
     def __init__(self):
         self.threads = {}
         self.counters = []#
+        self.libs = []# strings 
+        self.libs_positions = {}# key is string
+    
+    def add_lib(self, string):
+        if string == "-":
+            return -1
+        if string in self.libs_positions:
+            return self.libs_positions[string]
+        else:
+            libs_index = len(self.libs)
+            self.libs.append(string)
+            self.libs_positions[string] = libs_index
+            return libs_index
     
     def walk_samples(self, stats):
         dummyeventdelay = 7
@@ -43,7 +55,7 @@ class Converter:
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
-        for i, sample in enumerate(stats.profiles):
+        for i, sample in enumerate(stats.profiles):# translate_profile 224
             frames = []
             categorys = []
             stack_info, _, tid, memory = sample
@@ -79,9 +91,10 @@ class Converter:
         funcname = addr_info[1]
         filename = addr_info[3]
         if lineprof:
-            return thread.add_frame(funcname, -1 * stack_info[j + 1], filename)# vmprof python line indexes are negative
+            lib_index = self.add_lib(filename)
+            return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, lib_index)# vmprof python line indexes are negative
         else:
-            return thread.add_frame(funcname, -1, filename)
+            return thread.add_frame(funcname, -1, filename, -1)
 
     def add_jit_frame(self, thread, categorys, addr_info, frames):
         funcname = addr_info[1]
@@ -95,14 +108,15 @@ class Converter:
         else:
             categorys.append(CATEGORY_JIT)
         if addr_info is not None and int(addr_info[2]) >= 0:
-            return thread.add_frame(funcname, addr_info[2], filename)# vmprof jit line indexes are positive
+            lib_index = self.add_lib(filename)
+            return thread.add_frame(funcname, int(addr_info[2]), filename, lib_index)# vmprof jit line indexes are positive
         else:
-            return thread.add_frame(funcname, -1, filename)
+            return thread.add_frame(funcname, -1, filename, -1)
 
     def add_native_frame(self, thread, stack_info):
         funcname = stack_info
         filename = ""
-        frameindex = thread.add_frame(funcname, -1, filename)
+        frameindex = thread.add_frame(funcname, -1, filename, -1)
         return frameindex
     
     def check_asm_frame(self, categorys):
@@ -137,7 +151,7 @@ class Converter:
     def dumps_vmprof(self, stats):
         processed_profile = {}
         processed_profile["meta"] = self.dump_vmprof_meta(stats)
-        processed_profile["libs"] = []
+        processed_profile["libs"] = self.dump_libs()
         processed_profile["pages"] = []
         if(stats.profile_memory):
             processed_profile["counters"] = [self.dump_counters()]
@@ -146,6 +160,20 @@ class Converter:
         processed_profile["threads"] = self.dump_threads()
         check_processed_profile(processed_profile)
         return json.dumps(processed_profile)
+    
+    def dump_libs(self):
+        liblist = []
+        for lib in self.libs:
+            liblist.append(
+                {
+                    "name": lib,
+                    "path": lib,
+                    "debugName": lib,
+                    "debugPath": lib,
+                    "arch": ""
+                }
+            )
+        return liblist
     
     def dump_threads(self):
         return [thread.dump_thread()for thread in list(self.threads.values())] 
@@ -297,11 +325,15 @@ class Thread:
         self.stringarray_positions = {}
         self.stacktable = []# list of [frameindex, stacktableindex_or_None, category] cat{0 = py, 1 = mem, 2 = native, 3 = jit, 4 = asm, 5 =  jit_inline, 6 = mixed}
         self.stacktable_positions = {}
-        self.functable = []# list of [stringtable_index, stringtable_index, int] funcname, filename, line  line == -1 if profile_lines == False
+        self.functable = []# list of [stringtable_index, stringtable_index, int, resource_index] funcname, filename, line  line == -1 if profile_lines == False, resource_index
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index]   
+        self.frametable = []# list of [functable_index, nativesymbol_index, line]   
         self.frametable_positions = {}# key is string
-        self.samples = [] #list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
+        self.samples = []# list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
+        self.nativesymbols = []# list of [libindex, stringindex]
+        self.nativesymbols_positions = {}# key is (libindex, string)
+        self.resourcetable = []# list of [libindex, stringindex]
+        self.resourcetable_positions = {}# key is (libindex, stringindex)
 
     def add_string(self, string):
         if string in self.stringarray_positions:
@@ -331,32 +363,58 @@ class Thread:
                 self.stacktable_positions[key] = result
                 return result
             
-    def add_func(self, func, file, line):
+    def add_func(self, func, file, line, libindex):
         key = (func, file, line)
         if key in self.funtable_positions:
             return self.funtable_positions[key]
         else:
             stringtable_index_func = self.add_string(func)
             stringtable_index_file = self.add_string(file)
+            resource_index = self.add_resource(libindex, stringtable_index_func)
             result = len(self.functable)
-            self.functable.append([stringtable_index_func, stringtable_index_file, line])
+            self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index])
             self.funtable_positions[key] = result
             return result
             
-    def add_frame(self, string, line, file):
-        key = (string, line)
+    def add_frame(self, funcname, line, file, libindex):
+        key = (funcname, line)
         if key in self.frametable_positions:
             return self.frametable_positions[key]
         else:
-            functable_index = self.add_func(string, file, line)
-            #stringtable_index = self.add_string(string)
+            functable_index = self.add_func(funcname, file, line, libindex)
             frametable_index = len(self.frametable)
-            self.frametable.append([functable_index])
+            nativesymbol_index = self.add_nativesymbol(libindex, funcname)
+            self.frametable.append([functable_index, nativesymbol_index, line])
             self.frametable_positions[key] = frametable_index
             return frametable_index
         
     def add_sample(self, stackindex, time, eventdelay):
         self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
+    
+    def add_nativesymbol(self, libindex, funcname):
+        if libindex == -1:
+            return -1
+        key = (libindex, funcname)
+        if key in self.nativesymbols_positions:
+            return self.nativesymbols_positions[key]
+        else:
+            funcname_index = self.add_string(funcname)
+            nativesymbol_index = len(self.nativesymbols)
+            self.nativesymbols.append([libindex, funcname_index])
+            self.nativesymbols_positions[key] = nativesymbol_index
+            return nativesymbol_index
+    
+    def add_resource(self, libindex, stringindex):
+        if libindex == -1:
+            return -1
+        key = (libindex, stringindex)
+        if key in self.resourcetable_positions:
+            return self.resourcetable_positions[key]
+        else:
+            resource_index = len(self.resourcetable)
+            self.resourcetable.append([libindex, stringindex])
+            self.resourcetable_positions[key] = resource_index
+            return resource_index
     
     def dump_thread(self):
         thread = {}
@@ -376,20 +434,34 @@ class Thread:
             "length": 0
         }
 
+        thread["nativeSymbols"] = self.dump_nativesymbols()
         thread["frameTable"] = self.dump_frametable()
         thread["funcTable"] = self.dump_functable()
-       
-        thread["resourceTable"] = { 
-            "type": [],
-            "length": 0
-        }
-       
+        thread["resourceTable"] = self.dump_resourcetable()
         thread["stackTable"] = self.dump_stacktable()
         thread["samples"] = self.dump_samples()
         thread["stringArray"] = self.dump_stringarray()
 
         return thread
     
+    def dump_resourcetable(self):
+        resourcetable = {}
+        resourcetable["lib"] = [nsym[0] for nsym in self.resourcetable]
+        resourcetable["name"] = [nsym[1] for nsym in self.resourcetable]
+        resourcetable["host"] = [None for _ in self.resourcetable]
+        resourcetable["type"] = [1 for _ in self.resourcetable]
+        resourcetable["length"] = len(self.resourcetable)
+        return resourcetable
+    
+    def dump_nativesymbols(self):
+        nativesymbols = {}
+        nativesymbols["libIndex"] = [nsym[0]for nsym in self.nativesymbols]
+        nativesymbols["address"] = [-1 for _ in self.nativesymbols]
+        nativesymbols["name"] = [nsym[1]for nsym in self.nativesymbols]
+        nativesymbols["functionSize"] = [None for _ in self.nativesymbols]
+        nativesymbols["length"] = len(self.nativesymbols)
+        return nativesymbols
+
     def dump_frametable(self):
         ftable = {}
         ftable["address"] = [-1 for _ in self.frametable]
@@ -398,6 +470,8 @@ class Thread:
         ftable["subcategory"] = [None for _ in self.frametable]
         ftable["func"] = [frame[0] for frame in self.frametable]
         ftable["innerWindowID"] = [0 for _ in self.frametable]
+        ftable["nativeSymbol"] = [frame[1] for frame in self.frametable]
+        ftable["line"] = [frame[2] for frame in self.frametable]
         ftable["length"] = len(self.frametable)
         return ftable
 
@@ -406,7 +480,7 @@ class Thread:
         ftable["isJS"] = [False for _ in self.functable]
         ftable["relevantForJS"] = [False for _ in self.functable]
         ftable["name"] = [func[0] for func in self.functable]
-        ftable["resource"] = [-1 for _ in self.functable]
+        ftable["resource"] = [func[3] for func in self.functable]
         linenumbers, filenames = self.get_processed_filelines()
         ftable["fileName"] = filenames
         ftable["lineNumber"] = linenumbers

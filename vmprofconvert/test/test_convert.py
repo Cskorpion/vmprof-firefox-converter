@@ -53,22 +53,22 @@ def test_stacktable():
 
 def test_frametable():
     t = Thread()
-    frameindex0 = t.add_frame("duck", -1, "dummyfile.py")# string, line, file
-    frameindex1 = t.add_frame("duck", -1, "dummyfile.py")
+    frameindex0 = t.add_frame("duck", -1, "dummyfile.py", -1)# string, line, file, nativesymbol_index
+    frameindex1 = t.add_frame("duck", -1, "dummyfile.py", -1)
     assert frameindex0 == frameindex1 == 0
-    frameindex2 = t.add_frame("goose", -1, "dummyfile.py")
+    frameindex2 = t.add_frame("goose", -1, "dummyfile.py", -1)
     assert frameindex2 == frameindex1 + 1
-    assert t.frametable == [[0],[1]]
+    assert t.frametable == [[0, -1, -1],[1, -1, -1]]
     assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
 
 def test_functable():
     t = Thread()
-    funcindex0 = t.add_func("function_a", "dummyfile.py", 7)# func, file, line
-    funcindex1 = t.add_func("function_a", "dummyfile.py", 7)
+    funcindex0 = t.add_func("function_a", "dummyfile.py", 7, -1)# func, file, line, resource
+    funcindex1 = t.add_func("function_a", "dummyfile.py", 7, -1 )
     assert funcindex0 == funcindex1 == 0
-    funcindex2 = t.add_func("function_b", "dummyfile.py", 17)
+    funcindex2 = t.add_func("function_b", "dummyfile.py", 17, -1)
     assert funcindex2 == funcindex1 + 1
-    assert t.functable == [[0, 1, 7],[2, 1, 17]]
+    assert t.functable == [[0, 1, 7, -1],[2, 1, 17, -1]]
     assert t.stringarray == ["function_a", "dummyfile.py" , "function_b"]
 
 def test_sampleslist():
@@ -103,7 +103,7 @@ def test_walksamples():
     c.walk_samples(stats)
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
-    assert t.frametable == [[0], [1], [2]]# stringtableindex, line
+    assert t.frametable == [[0, 0, 7], [1, 1, 17], [2, 2, 117]]# stringtableindex, nativesymbol_index
     assert t.stacktable == [[0, None, CATEGORY_PYTHON], [1, 0, CATEGORY_PYTHON], [2, 0, CATEGORY_PYTHON]]
     assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
 
@@ -154,7 +154,7 @@ def test_dumps_vmprof_no_lines():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     jsonobject = json.loads(jsonstr)
     dumped_frametable = jsonobject["threads"][0]["frameTable"]
-    assert "line" not in dumped_frametable
+    assert dumped_frametable["line"][0] == -1
 
     
 def test_dumps_vmprof():
@@ -239,7 +239,7 @@ def test_multiple_threads():
     t_54321 = c.threads[54321]
     threadids = list(c.threads.keys())
     expected_threadids = [12345, 54321]
-    assert  threadids == expected_threadids
+    assert threadids == expected_threadids
     assert len(t_12345.stringarray) == 3
     assert len(t_54321.stringarray) == 4
 
@@ -313,8 +313,8 @@ def test_add_native_frame():
     thread = Thread()
     stack_info = "native_function"
     c.add_native_frame(thread, stack_info)
-    assert thread.frametable == [[0]]
-    assert thread.functable == [[0, 1, -1]]
+    assert thread.frametable == [[0, -1, -1]]
+    assert thread.functable == [[0, 1, -1, -1]]
     assert thread.stringarray == [stack_info, ""]
 
 def test_add_jit_frame_to_mixed():
@@ -322,7 +322,7 @@ def test_add_jit_frame_to_mixed():
     thread = Thread()
     categorys =  [CATEGORY_PYTHON]
     addr_info_jit = ("", "function_a", 7, "dummyfile.py")
-    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3])
+    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3], -1)
     frames = [frame_index0]
     frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit, frames)
     frames.append(frame_index1)
@@ -353,6 +353,33 @@ def test_add_vmprof_frame():
     profile_lines = True
     c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, 0)
     c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, 2)
-    assert thread.frametable == [[0], [1]]
-    assert thread.functable == [[0, 1, 7], [2, 1, 0]]
+    assert thread.frametable == [[0, 0, 7], [1, 1, 0]]
+    assert thread.functable == [[0, 1, 7, 0], [2, 1, 0, 1]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b"]
+
+def test_add_lib():
+    c = Converter()
+    lib_index0 = c.add_lib("duck.py")
+    lib_index1 = c.add_lib("duck.py")
+    lib_index2 = c.add_lib("goose.py")
+    assert lib_index0 == lib_index1
+    assert lib_index1 == lib_index2 - 1
+    assert c.libs == ["duck.py", "goose.py"]# Not in a thread
+
+def test_add_native_symbol():
+    t = Thread()
+    nativesymbol_index0 = t.add_nativesymbol(0, "function_x")
+    nativesymbol_index1 = t.add_nativesymbol(1, "function_y")
+    assert nativesymbol_index0 == nativesymbol_index1 - 1
+    assert t.nativesymbols == [[0,0],[1,1]]# libindex, stringindex
+
+def test_add_resource():
+    t = Thread()
+    lib_index0 = 0
+    lib_index1 = 1
+    string_index0 = t.add_string("function_x")
+    string_index1 = t.add_string("function_y")
+    resource_index0 = t.add_resource(lib_index0, string_index0)
+    resource_index1 = t.add_resource(lib_index1, string_index1)
+    assert resource_index0 == resource_index1 - 1
+    assert t.resourcetable == [[0,0],[1,1]]# libindex, stringindex
