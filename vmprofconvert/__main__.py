@@ -13,7 +13,12 @@ url = "https://profiler.firefox.com/from-url/http%3A%2F%2F127.0.0.1%3A5000%2Fpro
 url += urllib.parse.quote(abs_path + ".json")
 url += "/?symbolServer=http%3A%2F%2F127.0.0.1%3A5000%2F"
 
+if sys.argv[2] is not None:
+    jitlogpath = sys.argv[2]
+else:
+    jitlogpath = ""
+
 with open(path + ".json", "w") as output_file:
     output_file.write(json.dumps(json.loads(convert_stats(path)), indent=2))
     webbrowser.open(url, new=0, autoraise=True)
-    start_server()
+    start_server(jitlogpath)
