@@ -74,7 +74,7 @@ class Converter:
                 if isinstance(stack_info[j], JittedCode):
                     frames.append(self.add_jit_frame(thread, categorys, addr_info, frames))
                 elif isinstance(stack_info[j], AssemblerCode):
-                    self.check_asm_frame(categorys)
+                    self.check_asm_frame(categorys, stack_info[j], thread, frames[-1])
                 elif addr_info is None: # Class NativeCode isnt used
                     categorys.append(CATEGORY_NATIVE)
                     frames.append(self.add_native_frame(thread, stack_info[j]))                   
@@ -92,9 +92,9 @@ class Converter:
         filename = addr_info[3]
         if lineprof:
             lib_index = self.add_lib(filename)
-            return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, lib_index)# vmprof python line indexes are negative
+            return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, lib_index, -1)# vmprof python line indexes are negative
         else:
-            return thread.add_frame(funcname, -1, filename, -1)
+            return thread.add_frame(funcname, -1, filename, -1, -1)
 
     def add_jit_frame(self, thread, categorys, addr_info, frames):
         funcname = addr_info[1]
@@ -109,20 +109,22 @@ class Converter:
             categorys.append(CATEGORY_JIT)
         if addr_info is not None and int(addr_info[2]) >= 0:
             lib_index = self.add_lib(filename)
-            return thread.add_frame(funcname, int(addr_info[2]), filename, lib_index)# vmprof jit line indexes are positive
+            return thread.add_frame(funcname, int(addr_info[2]), filename, lib_index, -1)# vmprof jit line indexes are positive
         else:
-            return thread.add_frame(funcname, -1, filename, -1)
+            return thread.add_frame(funcname, -1, filename, -1, -1)
 
     def add_native_frame(self, thread, stack_info):
         funcname = stack_info
         filename = ""
-        frameindex = thread.add_frame(funcname, -1, filename, -1)
+        frameindex = thread.add_frame(funcname, -1, filename, -1, -1)
         return frameindex
     
-    def check_asm_frame(self, categorys):
+    def check_asm_frame(self, categorys, stack_info, thread, last_frame):
         if len(categorys) > 0 and categorys[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
             categorys.pop()
             categorys.append(CATEGORY_JIT_INLINED)
+            last_nativesymbol_index = thread.frametable[last_frame][1]
+            thread.nativesymbols[last_nativesymbol_index][2] = stack_info
         else:# asm disabled
             pass
             #categorys.append(CATEGORY_ASM)#asm
@@ -330,7 +332,7 @@ class Thread:
         self.frametable = []# list of [functable_index, nativesymbol_index, line]   
         self.frametable_positions = {}# key is string
         self.samples = []# list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
-        self.nativesymbols = []# list of [libindex, stringindex]
+        self.nativesymbols = []# list of [libindex, stringindex, addr]
         self.nativesymbols_positions = {}# key is (libindex, string)
         self.resourcetable = []# list of [libindex, stringindex]
         self.resourcetable_positions = {}# key is (libindex, stringindex)
@@ -376,14 +378,14 @@ class Thread:
             self.funtable_positions[key] = result
             return result
             
-    def add_frame(self, funcname, line, file, libindex):
+    def add_frame(self, funcname, line, file, libindex, addr):
         key = (funcname, line)
         if key in self.frametable_positions:
             return self.frametable_positions[key]
         else:
             functable_index = self.add_func(funcname, file, line, libindex)
             frametable_index = len(self.frametable)
-            nativesymbol_index = self.add_nativesymbol(libindex, funcname)
+            nativesymbol_index = self.add_nativesymbol(libindex, funcname, addr)
             self.frametable.append([functable_index, nativesymbol_index, line])
             self.frametable_positions[key] = frametable_index
             return frametable_index
@@ -391,16 +393,16 @@ class Thread:
     def add_sample(self, stackindex, time, eventdelay):
         self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
     
-    def add_nativesymbol(self, libindex, funcname):
+    def add_nativesymbol(self, libindex, funcname, addr):
         if libindex == -1:
             return -1
-        key = (libindex, funcname)
+        key = (libindex, funcname, addr)
         if key in self.nativesymbols_positions:
             return self.nativesymbols_positions[key]
         else:
             funcname_index = self.add_string(funcname)
             nativesymbol_index = len(self.nativesymbols)
-            self.nativesymbols.append([libindex, funcname_index])
+            self.nativesymbols.append([libindex, funcname_index, addr])
             self.nativesymbols_positions[key] = nativesymbol_index
             return nativesymbol_index
     
@@ -456,7 +458,7 @@ class Thread:
     def dump_nativesymbols(self):
         nativesymbols = {}
         nativesymbols["libIndex"] = [nsym[0]for nsym in self.nativesymbols]
-        nativesymbols["address"] = [-1 for _ in self.nativesymbols]
+        nativesymbols["address"] = [nsym[2] for nsym in self.nativesymbols]
         nativesymbols["name"] = [nsym[1]for nsym in self.nativesymbols]
         nativesymbols["functionSize"] = [None for _ in self.nativesymbols]
         nativesymbols["length"] = len(self.nativesymbols)

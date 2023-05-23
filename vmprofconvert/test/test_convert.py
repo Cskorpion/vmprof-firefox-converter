@@ -53,10 +53,10 @@ def test_stacktable():
 
 def test_frametable():
     t = Thread()
-    frameindex0 = t.add_frame("duck", -1, "dummyfile.py", -1)# string, line, file, nativesymbol_index
-    frameindex1 = t.add_frame("duck", -1, "dummyfile.py", -1)
+    frameindex0 = t.add_frame("duck", -1, "dummyfile.py", -1, -1)# string, line, file, nativesymbol_index, addr
+    frameindex1 = t.add_frame("duck", -1, "dummyfile.py", -1, -1)
     assert frameindex0 == frameindex1 == 0
-    frameindex2 = t.add_frame("goose", -1, "dummyfile.py", -1)
+    frameindex2 = t.add_frame("goose", -1, "dummyfile.py", -1, -1)
     assert frameindex2 == frameindex1 + 1
     assert t.frametable == [[0, -1, -1],[1, -1, -1]]
     assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
@@ -304,10 +304,13 @@ def test_pypy_pystone():
 def test_check_asm_frame():
     categorys = []
     c = Converter()
-    c.check_asm_frame(categorys)
+    thread = Thread()
+    stack_info = "asm_function"
+    c.check_asm_frame(categorys, stack_info, thread, None)
     assert categorys == []# asm frames currently disabled 
     categorys.append(CATEGORY_JIT)
-    c.check_asm_frame(categorys)
+    thread.add_frame("jit_function", 7, "dummyfile.py", 0, -1)
+    c.check_asm_frame(categorys, stack_info, thread, 0)
     assert categorys == [CATEGORY_JIT_INLINED]# jit frame + asm frame => jit_inlined frame
 
 def test_add_native_frame():
@@ -324,7 +327,7 @@ def test_add_jit_frame_to_mixed():
     thread = Thread()
     categorys =  [CATEGORY_PYTHON]
     addr_info_jit = ("", "function_a", 7, "dummyfile.py")
-    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3], -1)
+    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3], -1, -1)
     frames = [frame_index0]
     frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit, frames)
     frames.append(frame_index1)
@@ -370,10 +373,10 @@ def test_add_lib():
 
 def test_add_native_symbol():
     t = Thread()
-    nativesymbol_index0 = t.add_nativesymbol(0, "function_x")
-    nativesymbol_index1 = t.add_nativesymbol(1, "function_y")
+    nativesymbol_index0 = t.add_nativesymbol(0, "function_x", 7)
+    nativesymbol_index1 = t.add_nativesymbol(1, "function_y", 17)
     assert nativesymbol_index0 == nativesymbol_index1 - 1
-    assert t.nativesymbols == [[0,0],[1,1]]# libindex, stringindex
+    assert t.nativesymbols == [[0, 0, 7],[1, 1, 17]]# libindex, stringindex, addr
 
 def test_add_resource():
     t = Thread()
