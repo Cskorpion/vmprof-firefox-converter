@@ -9,10 +9,10 @@ flaskapp = Flask(__name__)
 cors = CORS(flaskapp)
 flaskapp.config["CORS_HEADERS"] = "Content-Type"   
 
-@flaskapp.get("/profile/<path:filepath>")
-def getprofile(filepath):
-    if os.path.exists(filepath):
-        return json.dumps(open(filepath, "r").read())
+@flaskapp.get("/profile")
+def getprofile():
+    if os.path.exists(profilepath):
+        return json.dumps(open(profilepath, "r").read())
     else:
         return ""
     
@@ -29,12 +29,13 @@ def source():
         response["file"] = jsonobj["file"]
         if response["file"] is not None:
             if os.path.exists(response["file"]):
-                response["source"] = open(response["file"], "r").read()
+                with open(response["file"], "r") as file:
+                    response["source"] = file.read()
                 return json.dumps(response)
     return ""
 
 @flaskapp.post("/asm/v1")
-def asm():# dummy for now
+def asm():
     response = {
         "startAddress": "0x7",
         "size": "0x17",
@@ -57,7 +58,9 @@ def asm():# dummy for now
 
 def get_jitlog_asm(addr):
     asm = []
-    forest = parse_jitlog(flaskapp.__dict__["jitlog"])
+    if not os.path.exists(jitlogpath):
+        return asm
+    forest = parse_jitlog(jitlogpath)
     trace = forest.get_trace_by_addr(addr)
     if trace is not None:
         if "opt" in trace.stages:
@@ -66,6 +69,8 @@ def get_jitlog_asm(addr):
     return asm
 
 
-def start_server(path):
-    flaskapp.__dict__["jitlog"] = path# is this ok?
+def start_server(jsonpath, jitlog):
+    global profilepath , jitlogpath
+    profilepath = jsonpath
+    jitlogpath = jitlog
     flaskapp.run() 
