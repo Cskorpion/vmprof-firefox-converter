@@ -58,7 +58,7 @@ def asm():
 
 def get_jitlog_asm(addr):
     asm = []
-    if not os.path.exists(jitlogpath):
+    if jitlogpath is None or not os.path.exists(jitlogpath):
         return asm
     forest = parse_jitlog(jitlogpath)
     trace = forest.get_trace_by_addr(addr)
