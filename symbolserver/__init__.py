@@ -50,17 +50,17 @@ def asm():
             addr = int(addr ,16)
             print(addr)
         response["startAddress"] = addr
-        asm = get_jitlog_asm(addr)
+        asm = get_jitlog_ir(jitlogpath, addr)
         if len(asm) != 0:
             response["instructions"] = asm
             response["size"] = len(asm)
     return json.dumps(response)
 
-def get_jitlog_asm(addr):
+def get_jitlog_ir(jitpath, addr):
     asm = []
-    if jitlogpath is None or not os.path.exists(jitlogpath):
+    if jitpath is None or not os.path.exists(jitpath):
         return asm
-    forest = parse_jitlog(jitlogpath)
+    forest = parse_jitlog(jitpath)
     trace = forest.get_trace_by_addr(addr)
     if trace is not None:
         if "opt" in trace.stages:
