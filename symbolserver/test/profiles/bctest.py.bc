@@ -1,0 +1,14 @@
+Disassembly of cat:
+Disassembly of __init__:
+  4           0 LOAD_CONST               1 ('Floppa')
+              2 LOAD_FAST                0 (self)
+              4 STORE_ATTR               0 (name)
+              6 LOAD_CONST               0 (None)
+              8 RETURN_VALUE
+
+Disassembly of get_name:
+  7           0 LOAD_FAST                0 (self)
+              2 LOAD_ATTR                0 (name)
+              4 RETURN_VALUE
+
+

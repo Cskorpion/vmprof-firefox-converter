@@ -1,5 +1,6 @@
 import os 
 import json
+import dis
 from jitlog.parser import parse_jitlog
 from flask import Flask
 from flask import request
@@ -68,6 +69,28 @@ def get_jitlog_ir(jitpath, addr):
                 asm.append([i, str(op)])
     return asm
 
+def get_bytecode_offsets(trace):
+    offsets = []
+    if trace is not None:
+        if "opt" in trace.stages:
+            mergepoints = trace.stages["opt"].get_merge_points()
+            for mp in mergepoints:
+                offsets.append(mp.values[4])
+    return offsets
+
+def get_bytecode(module, file):
+    ds = dis.dis(module, file=file)
+    return ds
+    
+def get_sourceline(path, line):
+    if path is None or not os.path.exists(path):
+        return ""
+    sourcelines = []
+    with open(path, "r") as file:
+        sourcelines = file.readlines()
+    if len(sourcelines) > line:
+        return sourcelines[line]
+    return ""
 
 def start_server(jsonpath, jitlog):
     global profilepath , jitlogpath
