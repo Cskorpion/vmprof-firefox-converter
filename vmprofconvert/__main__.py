@@ -7,7 +7,7 @@ import platform
 from vmprofconvert import convert_stats
 from symbolserver import start_server 
 
-def run_vmprof(path):
+def run_vmprof(path, argv):
     profpath = path.replace(".py", ".prof")
     impl = platform.python_implementation()
     os = platform.system()
@@ -21,8 +21,13 @@ def run_vmprof(path):
         args += " --lines"
         if os == "Linux" or os == "Darwin":
             args += " --mem"
-        
-    command = sys.executable + " -m vmprof" + args + " " + path
+            
+    cmd_args = ""
+    if len(argv) > 3:
+        for arg in argv[3:]:
+            cmd_args += " " + arg
+
+    command = sys.executable + " -m vmprof" + args + " " + path + cmd_args
     subprocess.run(command, shell=True)
 
     return (profpath, jitlogpath)
@@ -30,7 +35,7 @@ def run_vmprof(path):
 if __name__ == "__main__":
     if sys.argv[1] == "run":# todo: use argparse
         if len(sys.argv) > 2:
-            path, jitlogpath = run_vmprof(sys.argv[2])
+            path, jitlogpath = run_vmprof(sys.argv[2], sys.argv)
             if jitlogpath is not None:
                 jitlogpath = os.path.abspath(jitlogpath)
     else:
