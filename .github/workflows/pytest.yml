@@ -32,7 +32,7 @@ jobs:
 
     - name: install dependencies and create virtualenv
       run: |
-        python -m pip install pytest vmprof
+        python -m pip install pytest vmprof flask flask_cors
 
     - name: Test with pytest
       run: |
