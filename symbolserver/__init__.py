@@ -49,12 +49,11 @@ def asm():
         addr = jsonobj["startAddress"]
         if isinstance(addr, str) and addr != "0x-1":
             addr = int(addr ,16)
-            print(addr)
-        response["startAddress"] = addr
-        asm = get_jitlog_ir(jitlogpath, addr)
-        if len(asm) != 0:
-            response["instructions"] = asm
-            response["size"] = len(asm)
+        response["startAddress"] = "0x0"
+        code = get_jitlog_ir(jitlogpath, addr)
+        if len(code) != 0:
+            response["instructions"] = code
+            response["size"] = len(code)
     return json.dumps(response)
 
 def get_jitlog_ir(jitpath, addr):
@@ -69,28 +68,46 @@ def get_jitlog_ir(jitpath, addr):
                 asm.append([i, str(op)])
     return asm
 
-def get_bytecode_offsets(trace):
+def get_mp_data(trace):
     offsets = []
     if trace is not None:
         if "opt" in trace.stages:
             mergepoints = trace.stages["opt"].get_merge_points()
             for mp in mergepoints:
-                offsets.append(mp.values[4])
+                ofs = (mp.values[1], mp.values[2], mp.values[8], mp.values[4])# file, lineno, func, bc_offset
+                offsets.append(ofs)
     return offsets
 
-def get_bytecode(module, file):
-    ds = dis.dis(module, file=file)
-    return ds
+def get_all_bytecodes_rec(code):
+    yield code
+    for const in code.co_consts:
+        if type(const) is not type(code):
+            continue
+        yield from get_all_bytecodes_rec(const)
+
+def search_bytecode(module_code, funcname, linenumber):
+    for code in get_all_bytecodes_rec(module_code):
+        if code.co_name == funcname and code.co_firstlineno == linenumber:
+            yield code
+
+def get_instruction(codeobject, funcname, linenumber, offset):
+    l = list(search_bytecode(codeobject, funcname, linenumber))
+    if len(l) != 1:
+        return None
+    bc = dis.Bytecode(l[0])
+    for inst in bc:
+        if inst.offset == offset:
+            return inst
     
 def get_sourceline(path, line):
     if path is None or not os.path.exists(path):
-        return ""
+        return None
     sourcelines = []
     with open(path, "r") as file:
         sourcelines = file.readlines()
     if len(sourcelines) > line:
         return sourcelines[line]
-    return ""
+    return None
 
 def start_server(jsonpath, jitlog):
     global profilepath , jitlogpath
