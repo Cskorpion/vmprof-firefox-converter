@@ -71,6 +71,11 @@ class Converter:
                 indexes = range(len(stack_info))
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
+                #remove jit frames # quick fix 
+                if len(categorys) != 0:
+                    if not isinstance(stack_info[j], AssemblerCode) and categorys[-1] == CATEGORY_JIT:
+                        frames.pop()
+                        categorys.pop()
                 if isinstance(stack_info[j], JittedCode):
                     frames.append(self.add_jit_frame(thread, categorys, addr_info, frames))
                 elif isinstance(stack_info[j], AssemblerCode):
