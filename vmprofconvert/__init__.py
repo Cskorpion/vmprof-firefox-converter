@@ -478,10 +478,19 @@ class Thread:
         ftable["func"] = [frame[0] for frame in self.frametable]
         ftable["innerWindowID"] = [0 for _ in self.frametable]
         ftable["nativeSymbol"] = [frame[1] for frame in self.frametable]
-        ftable["line"] = [frame[2] for frame in self.frametable]
+        ftable["line"] = self.get_frametable_lines()
         ftable["length"] = len(self.frametable)
         return ftable
-
+    
+    def get_frametable_lines(self):
+        lines = []
+        for frame in self.frametable:
+            if frame[2] == -1:
+                lines.append(None)
+            else:
+                lines.append(frame[2])
+        return lines
+    
     def dump_functable(self):
         ftable = {}
         ftable["isJS"] = [False for _ in self.functable]
