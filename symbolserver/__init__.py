@@ -10,6 +10,8 @@ flaskapp = Flask(__name__)
 cors = CORS(flaskapp)
 flaskapp.config["CORS_HEADERS"] = "Content-Type"   
 
+codeobj_dict = {}
+
 @flaskapp.get("/profile")
 def getprofile():
     if os.path.exists(profilepath):
@@ -50,11 +52,65 @@ def asm():
         if isinstance(addr, str) and addr != "0x-1":
             addr = int(addr ,16)
         response["startAddress"] = "0x0"
-        code = get_jitlog_ir(jitlogpath, addr)
+        #code = get_jitlog_ir(jitlogpath, addr)
+        code = get_advanced_code(jitlogpath, addr)
         if len(code) != 0:
             response["instructions"] = code
             response["size"] = len(code)
     return json.dumps(response)
+
+def get_code_object(path):
+    if path in codeobj_dict:
+        return codeobj_dict[path]
+    else:
+        #maybe add limit
+        with open(path, "rb") as file:
+            content = file.read()
+        codeobj_dict[path] = compile(content, path, "exec")
+        return codeobj_dict[path]
+
+def get_advanced_code(jitpath, addr):
+    code = {}
+    if jitpath is None or not os.path.exists(jitpath):
+        return []
+    forest = parse_jitlog(jitpath)
+    trace = forest.get_trace_by_addr(addr)
+    if trace is None:
+        return []
+    mp_data = get_mp_data(trace)
+    index = 0
+    for ir in mp_data:
+        key = ir[0] + str(ir[1])
+        py_line = get_sourceline(ir[0], ir[1])
+        if py_line is not None:
+            codeobject = get_code_object(ir[0])
+            bc_instr = get_bc_instruction(codeobject, ir[2], ir[1], ir[3])
+            ir_instr = None# todo
+            index += insert_code(code,index, key, py_line, bc_instr, ir_instr)
+    return code_dict_to_list(code)
+
+def insert_code(code, index, key, py_line, bc_instr, ir_instr):
+    if bc_instr is not None:
+        if key not in code:
+            code[key] = {
+                "py": [index, py_line.strip()],
+                "bc": [[index + 1, " " +  bc_instr.__str__()]],
+                "ir": []
+            }
+            return index + 2# change to 3 when ir is used
+        else:
+            tmp = code[key]
+            tmp["bc"].append([index, " " +  bc_instr.__str__()])
+            return index + 1
+
+def code_dict_to_list(code):
+    lcode = []
+    for v in code.keys():
+        tmp = code[v]
+        lcode.append(tmp["py"])
+        for bc in tmp["bc"]:
+          lcode.append(bc)
+    return lcode
 
 def get_jitlog_ir(jitpath, addr):
     asm = []
@@ -90,7 +146,7 @@ def search_bytecode(module_code, funcname, linenumber):
         if code.co_name == funcname and code.co_firstlineno == linenumber:
             yield code
 
-def get_instruction(codeobject, funcname, linenumber, offset):
+def get_bc_instruction(codeobject, funcname, linenumber, offset):
     l = list(search_bytecode(codeobject, funcname, linenumber))
     if len(l) != 1:
         return None

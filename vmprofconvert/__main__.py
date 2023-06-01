@@ -42,7 +42,6 @@ if __name__ == "__main__":
         path = sys.argv[1]
         jitlogpath = None
         if len(sys.argv) > 2 and sys.argv[2] is not None:
-            print(sys.argv[2])
             jitlogpath = os.path.abspath(sys.argv[2])
             
     abs_path = os.path.abspath(path)
