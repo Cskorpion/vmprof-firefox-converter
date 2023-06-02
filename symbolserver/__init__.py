@@ -78,38 +78,60 @@ def get_advanced_code(jitpath, addr):
     if trace is None:
         return []
     mp_data = get_mp_data(trace)
-    index = 0
-    for ir in mp_data:
+    ir_code = get_ir_code(trace)
+    for i, ir in enumerate(mp_data):
         key = ir[0] + str(ir[1])
         py_line = get_sourceline(ir[0], ir[1])
         if py_line is not None:
             codeobject = get_code_object(ir[0])
             bc_instr = get_bc_instruction(codeobject, ir[2], ir[1], ir[3])
-            ir_instr = None# todo
-            index += insert_code(code,index, key, py_line, bc_instr, ir_instr)
+            insert_code(code, key, py_line, bc_instr, ir_code[i])
     return code_dict_to_list(code)
 
-def insert_code(code, index, key, py_line, bc_instr, ir_instr):
+def get_ir_code(trace):
+    ir_code = []
+    stage_opt = trace.stages["opt"]
+    indexes = [mp.__dict__["index"] for mp in stage_opt.get_merge_points()]
+    slices = []
+    for index in indexes:
+        slices.append(index)
+    slices.append(len(stage_opt.get_ops()))
+    for i in range(len(indexes)):
+        ir_code.append(stage_opt.get_ops()[slices[i]:slices[i + 1]])
+    return ir_code
+   
+def insert_code(code, key, py_line, bc_instr, ir_instr):
     if bc_instr is not None:
         if key not in code:
             code[key] = {
-                "py": [index, py_line.strip()],
-                "bc": [[index + 1, " " +  bc_instr.__str__()]],
-                "ir": []
+                "py_line": py_line.strip(),
+                "bc": [{
+                    "bc_line": str(bc_instr).strip(),
+                    "ir_code": ir_instr 
+                    }
+                ]
             }
-            return index + 2# change to 3 when ir is used
         else:
-            tmp = code[key]
-            tmp["bc"].append([index, " " +  bc_instr.__str__()])
-            return index + 1
+            nd = {
+                "bc_line": str(bc_instr).strip(),
+                "ir_code": ir_instr 
+            }
+            code[key]["bc"].append(nd)
+
 
 def code_dict_to_list(code):
+    index = 0
     lcode = []
     for v in code.keys():
         tmp = code[v]
-        lcode.append(tmp["py"])
+        lcode.append([index, tmp["py_line"]])
+        index += 1
         for bc in tmp["bc"]:
-          lcode.append(bc)
+          lcode.append([index, "  " + bc["bc_line"]])
+          index += 1
+          for ir in bc["ir_code"]:
+              lcode.append([index, "    " + str(ir)])
+              index += 1
     return lcode
 
 def get_jitlog_ir(jitpath, addr):
@@ -143,7 +165,7 @@ def get_all_bytecodes_rec(code):
 
 def search_bytecode(module_code, funcname, linenumber):
     for code in get_all_bytecodes_rec(module_code):
-        if code.co_name == funcname and code.co_firstlineno == linenumber:
+        if code.co_name == funcname:# and code.co_firstlineno == linenumber:
             yield code
 
 def get_bc_instruction(codeobject, funcname, linenumber, offset):
@@ -162,6 +184,8 @@ def get_sourceline(path, line):
     with open(path, "r") as file:
         sourcelines = file.readlines()
     if len(sourcelines) > line:
+        if sourcelines[line].strip() == "":
+            return None
         return sourcelines[line]
     return None
 
