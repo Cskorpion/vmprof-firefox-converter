@@ -103,5 +103,5 @@ def test_get_ir_code():
     path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof.jit")
     forest = parse_jitlog(path)
     trace = forest.get_trace_by_addr(140682485974400)
-    ir_code = get_ir_code(trace)
+    ir_code = get_ir_code(trace.stages["opt"])
     assert len(ir_code) == 18

@@ -35,7 +35,7 @@ def source():
                 with open(response["file"], "r") as file:
                     response["source"] = file.read()
                 return json.dumps(response)
-    return ""
+    return response
 
 @flaskapp.post("/asm/v1")
 def asm():
@@ -78,7 +78,7 @@ def get_advanced_code(jitpath, addr):
     if trace is None:
         return []
     mp_data = get_mp_data(trace)
-    ir_code = get_ir_code(trace)
+    ir_code = get_ir_code(trace.stages["opt"])
     for i, ir in enumerate(mp_data):
         key = ir[0] + str(ir[1])
         py_line = get_sourceline(ir[0], ir[1])
@@ -88,16 +88,12 @@ def get_advanced_code(jitpath, addr):
             insert_code(code, key, py_line, bc_instr, ir_code[i])
     return code_dict_to_list(code)
 
-def get_ir_code(trace):
+def get_ir_code(stage_opt):
     ir_code = []
-    stage_opt = trace.stages["opt"]
     indexes = [mp.__dict__["index"] for mp in stage_opt.get_merge_points()]
-    slices = []
-    for index in indexes:
-        slices.append(index)
-    slices.append(len(stage_opt.get_ops()))
-    for i in range(len(indexes)):
-        ir_code.append(stage_opt.get_ops()[slices[i]:slices[i + 1]])
+    indexes.append(len(stage_opt.get_ops()))
+    for i in range(len(indexes) - 1):
+        ir_code.append(stage_opt.get_ops()[indexes[i]:indexes[i + 1]])
     return ir_code
    
 def insert_code(code, key, py_line, bc_instr, ir_instr):
@@ -117,7 +113,6 @@ def insert_code(code, key, py_line, bc_instr, ir_instr):
                 "ir_code": ir_instr 
             }
             code[key]["bc"].append(nd)
-
 
 def code_dict_to_list(code):
     index = 0
