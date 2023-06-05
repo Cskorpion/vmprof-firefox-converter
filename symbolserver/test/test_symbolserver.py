@@ -31,7 +31,7 @@ def test_get_bytecode():
 
 def test_get_source_line():
     path = os.path.join(os.path.dirname(__file__), "profiles/bctest.py")
-    line = get_sourceline(path, 3)
+    line = get_sourceline(path, 4)# merge_point line starts at 1
     assert line.strip() == "self.name = \"Floppa\""
 
 def test_insert_code():
@@ -104,14 +104,14 @@ def test_get_ir_code():
     forest = parse_jitlog(path)
     trace = forest.get_trace_by_addr(140682485974400)
     ir_code = get_ir_code(trace.stages["opt"])
-    assert len(ir_code) == 18
+    assert len(ir_code) == 19
 
 def test_ir_to_str():
     path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof.jit")
     forest = parse_jitlog(path)
     trace = forest.get_trace_by_addr(140682485974400)
     ir_code = get_ir_code(trace.stages["opt"])
-    ir_instr = ir_code[0][0]
+    ir_instr = ir_code[1][0]
     ir_string = ir_to_str(ir_instr)
     expected_ir_str = "guard_value(i4, 4, @<ResumeGuardDescr object at 0x177f580>)"
     assert ir_string == expected_ir_str

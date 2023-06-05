@@ -79,18 +79,20 @@ def get_advanced_code(jitpath, addr):
         return []
     mp_data = get_mp_data(trace)
     ir_code = get_ir_code(trace.stages["opt"])
+    code["pre"] = ir_code[0] # ir code from before first py line 
     for i, ir in enumerate(mp_data):
         key = ir[0] + str(ir[1])
         py_line = get_sourceline(ir[0], ir[1])
         if py_line is not None:
             codeobject = get_code_object(ir[0])
             bc_instr = get_bc_instruction(codeobject, ir[2], ir[1], ir[3])
-            insert_code(code, key, py_line, bc_instr, ir_code[i])
+            insert_code(code, key, py_line, bc_instr, ir_code[i + 1])
     return code_dict_to_list(code)
 
 def get_ir_code(stage_opt):
     ir_code = []
-    indexes = [mp.index for mp in stage_opt.get_merge_points()]
+    indexes = [0]
+    [indexes.append(mp.index) for mp in stage_opt.get_merge_points()]
     indexes.append(len(stage_opt.get_ops()))
     for i in range(len(indexes) - 1):
         ir_code.append(stage_opt.get_ops()[indexes[i]:indexes[i + 1]])
@@ -117,6 +119,11 @@ def insert_code(code, key, py_line, bc_instr, ir_instr):
 def code_dict_to_list(code):
     index = 0
     lcode = []
+    if "pre" in code:
+        for ir_line in code["pre"]:
+            lcode.append([index, "    " + ir_to_str(ir_line)])
+            index += 1
+        code.pop("pre")
     for v in code.keys():
         tmp = code[v]
         lcode.append([index, tmp["py_line"]])
@@ -179,6 +186,7 @@ def get_sourceline(path, line):
     if path is None or not os.path.exists(path):
         return None
     sourcelines = []
+    line -= 1# line in debug_merge_points starts with 1
     with open(path, "r") as file:
         sourcelines = file.readlines()
     if len(sourcelines) > line:
