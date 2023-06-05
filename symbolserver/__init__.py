@@ -90,7 +90,7 @@ def get_advanced_code(jitpath, addr):
 
 def get_ir_code(stage_opt):
     ir_code = []
-    indexes = [mp.__dict__["index"] for mp in stage_opt.get_merge_points()]
+    indexes = [mp.index for mp in stage_opt.get_merge_points()]
     indexes.append(len(stage_opt.get_ops()))
     for i in range(len(indexes) - 1):
         ir_code.append(stage_opt.get_ops()[indexes[i]:indexes[i + 1]])
@@ -125,9 +125,12 @@ def code_dict_to_list(code):
           lcode.append([index, "  " + bc["bc_line"]])
           index += 1
           for ir in bc["ir_code"]:
-              lcode.append([index, "    " + str(ir)])
+              lcode.append([index, "    " + ir_to_str(ir)])
               index += 1
     return lcode
+
+def ir_to_str(ir):
+    return str(ir).removeprefix("? = ")
 
 def get_jitlog_ir(jitpath, addr):
     asm = []

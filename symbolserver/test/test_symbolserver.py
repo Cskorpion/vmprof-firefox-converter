@@ -1,7 +1,7 @@
 import os
 from jitlog.parser import parse_jitlog
 from symbolserver import get_jitlog_ir 
-from symbolserver import get_mp_data, get_sourceline, get_bc_instruction, insert_code, code_dict_to_list, get_ir_code
+from symbolserver import get_mp_data, get_sourceline, get_bc_instruction, insert_code, code_dict_to_list, get_ir_code, ir_to_str
 
 def test_get_jitlog_ir():
     path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof.jit")
@@ -105,3 +105,13 @@ def test_get_ir_code():
     trace = forest.get_trace_by_addr(140682485974400)
     ir_code = get_ir_code(trace.stages["opt"])
     assert len(ir_code) == 18
+
+def test_ir_to_str():
+    path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof.jit")
+    forest = parse_jitlog(path)
+    trace = forest.get_trace_by_addr(140682485974400)
+    ir_code = get_ir_code(trace.stages["opt"])
+    ir_instr = ir_code[0][0]
+    ir_string = ir_to_str(ir_instr)
+    expected_ir_str = "guard_value(i4, 4, @<ResumeGuardDescr object at 0x177f580>)"
+    assert ir_string == expected_ir_str
