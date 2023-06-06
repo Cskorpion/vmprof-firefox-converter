@@ -4,10 +4,11 @@ import os
 import webbrowser
 import subprocess
 import platform
+import argparse
 from vmprofconvert import convert_stats
 from symbolserver import start_server 
 
-def run_vmprof(path, argv):
+def run_vmprof(path, argv, pypylog):
     profpath = path.replace(".py", ".prof")
     impl = platform.python_implementation()
     os = platform.system()
@@ -33,16 +34,24 @@ def run_vmprof(path, argv):
     return (profpath, jitlogpath)
 
 if __name__ == "__main__":
-    if sys.argv[1] == "run":# todo: use argparse
-        if len(sys.argv) > 2:
-            path, jitlogpath = run_vmprof(sys.argv[2], sys.argv)
-            if jitlogpath is not None:
-                jitlogpath = os.path.abspath(jitlogpath)
-    else:
-        path = sys.argv[1]
+    parser = argparse.ArgumentParser(description="vmprof-firefox-converter")
+    parser.add_argument("-convert", metavar = "vmprof_file", dest = "vmprof_file", nargs = 1, help = "convert vmprof profile")
+    parser.add_argument("-jitlog", metavar = "jitlog_file", dest = "jitlog_file", nargs = 1, help = "use jitlog data")
+    parser.add_argument("-run", metavar = "python_file args", dest = "python_file", nargs = "+", help = "run vmprof and convert profile")
+    parser.add_argument("--nobrowser", action = "store_false", dest = "browser", default = "true", help = "dont open firefox profiler")
+    parser.add_argument("--pypylog",  action = "store_true", dest = "pypylog", default = "false", help = "use pypylog")
+
+    args = parser.parse_args()
+
+    if args.python_file:
+        path, jitlogpath = run_vmprof(args.python_file[0], args.python_file[1:], args.pypylog)
+        if jitlogpath is not None:
+            jitlogpath = os.path.abspath(jitlogpath)
+    elif args.vmprof_file:
+        path = args.vmprof_file[0]
         jitlogpath = None
-        if len(sys.argv) > 2 and sys.argv[2] is not None:
-            jitlogpath = os.path.abspath(sys.argv[2])
+        if args.jitlog_file:
+            jitlogpath = os.path.abspath(args.jitlog_file[0])
             
     abs_path = os.path.abspath(path)
 
@@ -51,5 +60,6 @@ if __name__ == "__main__":
 
     with open(abs_path + ".json", "w") as output_file:
         output_file.write(json.dumps(json.loads(convert_stats(abs_path)), indent=2))
+    if args.browser:
         webbrowser.open(url, new=0, autoraise=True)
         start_server(abs_path + ".json", jitlogpath)
