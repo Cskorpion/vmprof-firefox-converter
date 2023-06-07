@@ -3,11 +3,12 @@ import json
 import vmprof
 from vmprof.reader import JittedCode, AssemblerCode
 from vmprofconvert import convert
-from vmprofconvert import convert_vmprof
+from vmprofconvert import convert_vmprof, convert_stats_with_pypylog
 from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
 from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
+from vmprofconvert.pypylog import parse_pypylog
 
 class Dummystats():
     def __init__(self, profiles):
@@ -388,3 +389,22 @@ def test_add_resource():
     resource_index1 = t.add_resource(lib_index1, string_index1)
     assert resource_index0 == resource_index1 - 1
     assert t.resourcetable == [[0,0],[1,1]]# libindex, stringindex
+
+def test_parse_pypylog():
+    pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
+    pypylog = parse_pypylog(pypylog_path)
+    assert pypylog[0] == [314906064138,"gc-set-nursery-size", True]
+    assert pypylog[-1] == [317567248367,"jit-summary", False]
+    assert len(pypylog) == 8248
+
+def test_dumps_vmprof_without_pypylog():
+    vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
+    pypylog_path = None
+    times = None
+    jsonstr = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
+    profile = json.loads(jsonstr)
+    samples =  profile["threads"][0]["samples"] 
+    markers = profile["threads"][0]["markers"]
+    assert len(samples["stack"]) == 5551
+    assert markers["data"] == []
+

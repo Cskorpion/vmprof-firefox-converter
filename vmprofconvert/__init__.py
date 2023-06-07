@@ -2,6 +2,7 @@ import vmprof
 import json
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
+from vmprofconvert.pypylog import parse_pypylog
 
 CATEGORY_PYTHON = 0
 CATEGORY_MEMORY = 1
@@ -28,6 +29,18 @@ def convert_stats(path):
     c = Converter()
     stats = vmprof.read_profile(path)
     c.walk_samples(stats)
+    return c.dumps_vmprof(stats)
+
+def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
+    #times for cutting of logs after sampling ended
+    c = Converter()
+    stats = vmprof.read_profile(vmprof_path)
+    c.walk_samples(stats)
+    if pypylog_path:
+        pypylog = parse_pypylog(pypylog_path)
+        #pypylog = cut_pypylog(pypylog, (times[0] - times[1]), stats.get_runtime_in_microseconds())
+        #pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
+        #c.create_pypylog_marker(pypylog)
     return c.dumps_vmprof(stats)
 
 class Converter:
@@ -144,6 +157,10 @@ class Converter:
         last_funcname = thread.stringarray[last_funcname_index]
         last_filename = thread.stringarray[last_filename_index]
         return last_funcname, last_filename
+    
+    def create_pypylog_marker(pypylog):
+        #create_pypylog_marker todo
+        pass
 
     def dumps_static(self):
         processed_profile = {}
