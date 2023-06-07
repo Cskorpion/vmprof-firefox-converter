@@ -19,5 +19,10 @@ def parse_pypylog(path):
             if match:
                 timestamp = int(match.group(1), base=16)
                 action = match.group(2)
-                log.append([timestamp, action, starting])
+                log.append([timestamp, action, starting])           
     return log
+
+def cut_pypylog(pypylog, total_runtime_micros, vmprof_runtime_micros): 
+    factor = vmprof_runtime_micros/total_runtime_micros
+    limit = int(factor * len(pypylog))
+    return pypylog[:limit]

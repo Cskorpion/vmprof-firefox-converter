@@ -2,7 +2,7 @@ import vmprof
 import json
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
-from vmprofconvert.pypylog import parse_pypylog
+from vmprofconvert.pypylog import parse_pypylog, cut_pypylog
 
 CATEGORY_PYTHON = 0
 CATEGORY_MEMORY = 1
@@ -38,7 +38,8 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
     c.walk_samples(stats)
     if pypylog_path:
         pypylog = parse_pypylog(pypylog_path)
-        #pypylog = cut_pypylog(pypylog, (times[0] - times[1]), stats.get_runtime_in_microseconds())
+        total_runtime_micros = (times[1] - times[0]) * 1000000
+        pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
         #pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
         #c.create_pypylog_marker(pypylog)
     return c.dumps_vmprof(stats)
