@@ -8,7 +8,7 @@ from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
 from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
-from vmprofconvert.pypylog import parse_pypylog, cut_pypylog
+from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog
 
 class Dummystats():
     def __init__(self, profiles):
@@ -404,6 +404,13 @@ def test_cut_pypylog():
     expected_length = int(8248 * 0.7)
     assert len(initial_pypylog) == 8248
     assert len(cutted_pypylog) == expected_length
+
+def test_rescale_pypylog():
+    pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
+    initial_pypylog = parse_pypylog(pypylog_path)
+    rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000)
+    assert rescaled_pypylog[7][0] == 70
+    assert rescaled_pypylog[-1][0] == 9990
 
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")

@@ -26,3 +26,12 @@ def cut_pypylog(pypylog, total_runtime_micros, vmprof_runtime_micros):
     factor = vmprof_runtime_micros/total_runtime_micros
     limit = int(factor * len(pypylog))
     return pypylog[:limit]
+
+def rescale_pypylog(pypylog, vmprof_runtime_micros):
+    scaled_pypylog = []
+    time = vmprof_runtime_micros / len(pypylog)
+    for i in range(len(pypylog)):
+        line = pypylog[i]
+        log_time = int(time * i)# len(pypylog) > micros
+        scaled_pypylog.append([log_time, line[1], line[2]])
+    return scaled_pypylog
