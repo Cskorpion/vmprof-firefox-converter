@@ -360,11 +360,20 @@ class Thread:
         self.nativesymbols_positions = {}# key is (libindex, string)
         self.resourcetable = []# list of [libindex, stringindex]
         self.resourcetable_positions = {}# key is (libindex, stringindex)
-        self.marker = []
+        self.markers = []# list of [startime, endtime, stringindex]
 
     def create_pypylog_marker(self, pypylog):
-        #create_pypylog_marker todo
-        pass
+        for i in range(int(len(pypylog)/2)):
+            start_log = pypylog[2*i]
+            stop_log = pypylog[2*i+1]
+            starttime = start_log[0]
+            endtime = stop_log[0]
+            name = start_log[1]
+            st_id = self.add_string(name)
+            self.add_marker(starttime, endtime, st_id)
+            
+    def add_marker(self, starttime, endtime, stringtable_index):
+        self.markers.append([starttime, endtime, stringtable_index])
 
     def add_string(self, string):
         if string in self.stringarray_positions:

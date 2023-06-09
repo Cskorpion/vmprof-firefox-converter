@@ -39,7 +39,7 @@ def rescale_pypylog(pypylog, vmprof_runtime_micros):
     for i in range(len(pypylog)):
         line = pypylog[i]
         log_time = int(time * i)# len(pypylog) > micros
-        scaled_pypylog.append([log_time, line[1], line[2]])
+        scaled_pypylog.append([log_time, line[1], line[2], line[3]])
     return scaled_pypylog
 
 def filter_top_level_logs(pypylog):

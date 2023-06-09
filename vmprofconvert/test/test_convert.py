@@ -389,6 +389,14 @@ def test_add_resource():
     assert resource_index0 == resource_index1 - 1
     assert t.resourcetable == [[0,0],[1,1]]# libindex, stringindex
 
+def test_add_marker():
+    t = Thread()
+    t.add_marker(7, 17, 0) # starttime endtime stringtable_index
+    t.add_marker(17, 117, 1)
+    expected_marker0 = [7, 17, 0]
+    expected_marker1 = [17, 117, 1]
+    assert t.markers == [expected_marker0, expected_marker1]
+
 def test_parse_pypylog():
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     pypylog = parse_pypylog(pypylog_path)
@@ -414,11 +422,23 @@ def test_rescale_pypylog():
 def test_filter_top_level_logs():
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     initial_pypylog = parse_pypylog(pypylog_path)
-    rescaled_pypylog = filter_top_level_logs(initial_pypylog[:25])
+    filtered_pypylog = filter_top_level_logs(initial_pypylog[:25])
     assert initial_pypylog[6][1] != initial_pypylog[7][1]# nested action
-    assert rescaled_pypylog[6][1] == rescaled_pypylog[7][1]# not nested action
-    assert rescaled_pypylog[6][2] != rescaled_pypylog[7][2]# action start => action end
+    assert filtered_pypylog[6][1] == filtered_pypylog[7][1]# not nested action
+    assert filtered_pypylog[6][2] != filtered_pypylog[7][2]# action start => action end
 
+def test_create_pypylog_marker():
+    pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
+    t = Thread()
+    initial_pypylog = parse_pypylog(pypylog_path)
+    rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000)
+    filtered_pypylog = filter_top_level_logs(rescaled_pypylog[:20])
+    t.create_pypylog_marker(filtered_pypylog)
+    assert t.markers[0] == [0, 10, 0]
+    assert t.markers[1] == [20, 30, 1]
+    assert t.markers[2] == [40, 50, 1]
+    assert t.markers[3] == [60, 90, 2]
+    
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     pypylog_path = None
