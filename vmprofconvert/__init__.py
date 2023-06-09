@@ -314,6 +314,16 @@ class Converter:
                 ]
             }
         )
+        categorys.append(
+            {
+                "name": "PyPyLog",
+                "color": "lightred",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        )
+        
         return categorys
            
     def dump_counters(self):
@@ -468,12 +478,7 @@ class Thread:
         thread["unregisterTime"] = None
         thread["tid"] = self.tid
         thread["pid"] = "51580"
-
-        thread["markers"] = { 
-            "data": [],
-            "length": 0
-        }
-
+        thread["markers"] = self.dump_markers()
         thread["nativeSymbols"] = self.dump_nativesymbols()
         thread["frameTable"] = self.dump_frametable()
         thread["funcTable"] = self.dump_functable()
@@ -481,9 +486,19 @@ class Thread:
         thread["stackTable"] = self.dump_stacktable()
         thread["samples"] = self.dump_samples()
         thread["stringArray"] = self.dump_stringarray()
-
         return thread
     
+    def dump_markers(self):
+        markers = {}
+        markers["data"] = [{"type": "PyPyLog"} for _ in self.markers]
+        markers["name"] = [m[2] for m in self.markers]
+        markers["startTime"] = [m[0] for m in self.markers]
+        markers["endTime"] = [m[1] for m in self.markers]
+        markers["phase"] = [1 for _ in self.markers]
+        markers["category"] = [7 for _ in self.markers]
+        markers["length"] = len(self.markers)
+        return markers
+ 
     def dump_resourcetable(self):
         resourcetable = {}
         resourcetable["lib"] = [nsym[0] for nsym in self.resourcetable]

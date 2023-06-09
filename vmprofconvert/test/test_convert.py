@@ -415,7 +415,7 @@ def test_cut_pypylog():
 def test_rescale_pypylog():
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     initial_pypylog = parse_pypylog(pypylog_path)
-    rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000)
+    rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000000)
     assert rescaled_pypylog[7][0] == 70
     assert rescaled_pypylog[-1][0] == 9990
 
@@ -431,7 +431,7 @@ def test_create_pypylog_marker():
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     t = Thread()
     initial_pypylog = parse_pypylog(pypylog_path)
-    rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000)
+    rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000000)
     filtered_pypylog = filter_top_level_logs(rescaled_pypylog[:20])
     t.create_pypylog_marker(filtered_pypylog)
     assert t.markers[0] == [0, 10, 0]
@@ -445,7 +445,20 @@ def test_dumps_vmprof_without_pypylog():
     times = None
     jsonstr = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
     profile = json.loads(jsonstr)
-    samples =  profile["threads"][0]["samples"] 
+    samples = profile["threads"][0]["samples"] 
     markers = profile["threads"][0]["markers"]
     assert len(samples["stack"]) == 5551
     assert markers["data"] == []
+
+def test_dumps_vmprof_with_pypylog():
+    vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
+    pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
+    times = (0, 42.368387)
+    jsonstr = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
+    profile = json.loads(jsonstr)
+    samples = profile["threads"][0]["samples"] 
+    markers = profile["threads"][0]["markers"]
+    stringarray = profile["threads"][0]["stringArray"]
+    first_marker_name_index = markers["name"][0]
+    assert len(samples["stack"]) == 5551
+    assert stringarray[first_marker_name_index] == "gc-set-nursery-size"

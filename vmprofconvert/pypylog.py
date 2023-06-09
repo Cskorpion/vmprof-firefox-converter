@@ -35,7 +35,7 @@ def cut_pypylog(pypylog, total_runtime_micros, vmprof_runtime_micros):
 
 def rescale_pypylog(pypylog, vmprof_runtime_micros):
     scaled_pypylog = []
-    time = vmprof_runtime_micros / len(pypylog)
+    time = vmprof_runtime_micros / len(pypylog) * 0.001
     for i in range(len(pypylog)):
         line = pypylog[i]
         log_time = int(time * i)# len(pypylog) > micros
