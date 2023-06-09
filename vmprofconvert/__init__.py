@@ -2,7 +2,7 @@ import vmprof
 import json
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
-from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog
+from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
 
 CATEGORY_PYTHON = 0
 CATEGORY_MEMORY = 1
@@ -41,7 +41,9 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
         total_runtime_micros = (times[1] - times[0]) * 1000000
         pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
         pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
-        #c.create_pypylog_marker(pypylog)
+        pypylog = filter_top_level_logs(pypylog)
+        for tid in  list(c.threads.keys()):
+            c.create_pypylog_marker(pypylog, tid)
     return c.dumps_vmprof(stats)
 
 class Converter:
@@ -61,6 +63,9 @@ class Converter:
             self.libs.append(string)
             self.libs_positions[string] = libs_index
             return libs_index
+        
+    def create_pypylog_marker(self, pypylog, tid):
+        self.threads[tid].create_pypylog_marker(pypylog)
     
     def walk_samples(self, stats):
         dummyeventdelay = 7
@@ -158,10 +163,6 @@ class Converter:
         last_funcname = thread.stringarray[last_funcname_index]
         last_filename = thread.stringarray[last_filename_index]
         return last_funcname, last_filename
-    
-    def create_pypylog_marker(pypylog):
-        #create_pypylog_marker todo
-        pass
 
     def dumps_static(self):
         processed_profile = {}
@@ -359,6 +360,11 @@ class Thread:
         self.nativesymbols_positions = {}# key is (libindex, string)
         self.resourcetable = []# list of [libindex, stringindex]
         self.resourcetable_positions = {}# key is (libindex, stringindex)
+        self.marker = []
+
+    def create_pypylog_marker(self, pypylog):
+        #create_pypylog_marker todo
+        pass
 
     def add_string(self, string):
         if string in self.stringarray_positions:

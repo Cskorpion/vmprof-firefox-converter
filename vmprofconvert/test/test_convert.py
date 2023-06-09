@@ -8,7 +8,7 @@ from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
 from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
-from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog
+from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
 
 class Dummystats():
     def __init__(self, profiles):
@@ -288,7 +288,6 @@ def test_jit_asm_inline():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(c.dumps_static()), indent=2))
     thread = c.threads[12345]
-    #print(thread.frametable)
     assert thread.stacktable == [[0, None, CATEGORY_MIXED], [1, 0, CATEGORY_JIT_INLINED]]
 
 def test_pypy_pystone():
@@ -393,8 +392,8 @@ def test_add_resource():
 def test_parse_pypylog():
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     pypylog = parse_pypylog(pypylog_path)
-    assert pypylog[0] == [314906064138,"gc-set-nursery-size", True]
-    assert pypylog[-1] == [317567248367,"jit-summary", False]
+    assert pypylog[0] == [314906064138,"gc-set-nursery-size", True, 0]
+    assert pypylog[-1] == [317567248367,"jit-summary", False, 0]
     assert len(pypylog) == 8248
 
 def test_cut_pypylog():
@@ -411,6 +410,14 @@ def test_rescale_pypylog():
     rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000)
     assert rescaled_pypylog[7][0] == 70
     assert rescaled_pypylog[-1][0] == 9990
+
+def test_filter_top_level_logs():
+    pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
+    initial_pypylog = parse_pypylog(pypylog_path)
+    rescaled_pypylog = filter_top_level_logs(initial_pypylog[:25])
+    assert initial_pypylog[6][1] != initial_pypylog[7][1]# nested action
+    assert rescaled_pypylog[6][1] == rescaled_pypylog[7][1]# not nested action
+    assert rescaled_pypylog[6][2] != rescaled_pypylog[7][2]# action start => action end
 
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
