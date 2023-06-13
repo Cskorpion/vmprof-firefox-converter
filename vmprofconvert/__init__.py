@@ -1,5 +1,6 @@
 import vmprof
 import json
+import os
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
@@ -46,7 +47,7 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
         #for tid in list(c.threads.keys()):
            # c.create_pypylog_marker(pypylog, tid)
         c.walk_pypylog(pypylog)
-    return c.dumps_vmprof(stats)
+    return c.dumps_vmprof(stats), c.create_path_dict()# json_profile, file path dict
 
 class Converter:
     def __init__(self):
@@ -66,6 +67,13 @@ class Converter:
             self.libs_positions[string] = libs_index
             return libs_index
         
+    def create_path_dict(self):
+        path_dict = {}
+        for lib in self.libs:
+            if os.path.exists(lib):
+                path_dict[lib] = os.path.abspath(lib)
+        return path_dict
+    
     def create_pypylog_marker(self, pypylog, tid):
         self.threads[tid].create_pypylog_marker(pypylog)
 

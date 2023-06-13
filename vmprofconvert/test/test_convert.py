@@ -1,6 +1,7 @@
 import os
 import json
 import vmprof
+from zipfile import ZipFile
 from vmprof.reader import JittedCode, AssemblerCode
 from vmprofconvert import convert
 from vmprofconvert import convert_vmprof, convert_stats_with_pypylog
@@ -9,6 +10,7 @@ from vmprofconvert import Converter
 from vmprofconvert import Thread
 from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
+from vmprofconvert.__main__ import write_file_dict, save_zip
 
 class Dummystats():
     def __init__(self, profiles):
@@ -462,7 +464,7 @@ def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     pypylog_path = None
     times = None
-    jsonstr = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
+    jsonstr, _ = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
     profile = json.loads(jsonstr)
     samples = profile["threads"][0]["samples"] 
     markers = profile["threads"][0]["markers"]
@@ -473,10 +475,97 @@ def test_dumps_vmprof_with_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     times = (0, 42.368387)
-    jsonstr = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
+    jsonstr, _ = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
     profile = json.loads(jsonstr)
     samples = profile["threads"][0]["samples"] 
     stringarray = profile["threads"][1]["stringArray"]
     assert len(samples["stack"]) == 5551
     assert stringarray[0] == "gc-set-nursery-size"
+
+def test_write_file_dict():
+    file_dict = {
+        "file_a": "duck.py",
+        "file_b": "goose.prof"
+    }
+    zip_path = "tmpzip/examplezip.zip"
+    dict_path = None
+    json_dict = None
+    
+    os.mkdir("tmpzip")
+
+    with ZipFile(zip_path, "w") as examplezip:# create zip file and write file_dict
+        write_file_dict(file_dict, examplezip)
+
+    with ZipFile(zip_path, "r") as examplezip:
+        dict_path = examplezip.extract("dict.json")# extract file_dict
+
+    with open(dict_path, "r") as exampledict:# load file_dict
+        json_dict = json.loads(exampledict.read())
+
+    os.remove(zip_path)# cleanup
+    os.remove(dict_path)
+    os.rmdir("tmpzip")
+
+    assert not os.path.exists("tmp")
+    assert json_dict["file_a"] == file_dict["file_a"]
+    assert json_dict["file_b"] == file_dict["file_b"]
+
+def test_save_zip():
+    file_dict = {
+        "duck.py": "duck.py",
+        "/home/users/me/goose.prof": "goose.prof",
+        "C:\\users\\myself\\frog.jitlog": "frog.jitlog"
+    }
+
+    with open(file_dict["duck.py"], "w") as file_a:# create dummy files
+        file_a.write("print(\"quack\")")
+
+    with open(file_dict["/home/users/me/goose.prof"], "w") as file_b:# create dummy files
+        file_b.write("0x7")
+
+    with open(file_dict["C:\\users\\myself\\frog.jitlog"], "w") as file_c:# create dummy files
+        file_c.write("0x17")
+
+    extract_folder = "extracted"
+    zip_folder = "tmpzip"
+    zip_path = zip_folder + "/examplezip.zip"
+   
+    os.mkdir(zip_folder)
+
+    save_zip(zip_path, file_dict)# save dummy files in zip with dict
+
+    os.remove(file_dict["duck.py"])# remove local dummy files
+    os.remove(file_dict["/home/users/me/goose.prof"])
+    os.remove(file_dict["C:\\users\\myself\\frog.jitlog"])
+
+    os.mkdir(extract_folder)
+
+    with ZipFile(zip_path, "r") as examplezip:# open zip extract dict
+        dict_path = examplezip.extract("dict.json", extract_folder)
+
+    with open(dict_path, "r") as exampledict:# read file_dict
+        json_dict = json.loads(exampledict.read())
+    
+    new_file_paths = {}
+    with ZipFile(zip_path, "r") as examplezip:# open zip extract files listed in file_dict
+        for path in list(json_dict.keys()):
+            filename = json_dict[path]
+            new_file_paths[path] = examplezip.extract(filename, extract_folder)
+ 
+    filecontent = {}
+    for path in list(new_file_paths.keys()):# load content of extracted files 
+        with open(new_file_paths[path], "r") as file:
+            filecontent[path] = file.read()
+
+    os.remove(zip_path)# cleanup
+    os.rmdir(zip_folder)
+    os.remove(dict_path)
+    for file in new_file_paths:
+        os.remove(new_file_paths[file])
+    os.rmdir(extract_folder)
+
+    assert filecontent["duck.py"] == "print(\"quack\")"
+    assert filecontent["/home/users/me/goose.prof"] == "0x7"
+    assert filecontent["C:\\users\\myself\\frog.jitlog"] == "0x17"
+
 
