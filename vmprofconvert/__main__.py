@@ -73,8 +73,9 @@ if __name__ == "__main__":
 
     with open(abs_path + ".json", "w") as output_file:
         json_profile = convert_stats_with_pypylog(abs_path, pypylogpath, times)
-        #todo delete pypylog file here
         output_file.write(json.dumps(json.loads(json_profile), indent=2))
+        if pypylogpath and os.path.exists(pypylogpath):
+            os.remove(pypylogpath)
     if args.browser:
         webbrowser.open(url, new=0, autoraise=True)
         start_server(abs_path + ".json", jitlogpath)

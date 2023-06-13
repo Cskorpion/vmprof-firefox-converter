@@ -438,6 +438,25 @@ def test_create_pypylog_marker():
     assert t.markers[1] == [20, 30, 1]
     assert t.markers[2] == [40, 50, 1]
     assert t.markers[3] == [60, 90, 2]
+
+def test_get_unused_tid():
+    c = Converter()
+    c.threads[2] = Thread()
+    c.threads[7] = Thread()
+    c.threads[17] = Thread()
+    unused_tid = c.get_unused_tid()
+    assert unused_tid == 1
+
+def test_walk_pypylog():
+    c = Converter()
+    test_pypylog = [
+        [7, "gc_example_action_a", True, 0],
+        [17, "gc_example_action_a", False, 0]
+    ]
+    c.walk_pypylog(test_pypylog)
+    t = c.threads[7]
+    stringarray = t.stringarray
+    assert stringarray[0] == "gc_example_action_a"
     
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
@@ -457,8 +476,7 @@ def test_dumps_vmprof_with_pypylog():
     jsonstr = convert_stats_with_pypylog(vmprof_path, pypylog_path, times)
     profile = json.loads(jsonstr)
     samples = profile["threads"][0]["samples"] 
-    markers = profile["threads"][0]["markers"]
-    stringarray = profile["threads"][0]["stringArray"]
-    first_marker_name_index = markers["name"][0]
+    stringarray = profile["threads"][1]["stringArray"]
     assert len(samples["stack"]) == 5551
-    assert stringarray[first_marker_name_index] == "gc-set-nursery-size"
+    assert stringarray[0] == "gc-set-nursery-size"
+

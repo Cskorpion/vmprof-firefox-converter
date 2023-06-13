@@ -11,6 +11,7 @@ CATEGORY_JIT = 3
 CATEGORY_ASM = 4
 CATEGORY_JIT_INLINED = 5
 CATEGORY_MIXED = 6
+CATEGORY_GC = 7
 
 def convert(path):
     stats = vmprof.read_profile(path)
@@ -42,8 +43,9 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
         pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
         pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
         pypylog = filter_top_level_logs(pypylog)
-        for tid in  list(c.threads.keys()):
-            c.create_pypylog_marker(pypylog, tid)
+        #for tid in list(c.threads.keys()):
+           # c.create_pypylog_marker(pypylog, tid)
+        c.walk_pypylog(pypylog)
     return c.dumps_vmprof(stats)
 
 class Converter:
@@ -66,6 +68,32 @@ class Converter:
         
     def create_pypylog_marker(self, pypylog, tid):
         self.threads[tid].create_pypylog_marker(pypylog)
+
+    def get_unused_tid(self):
+        if len(self.threads) == 0:
+            return 7
+        lowest_tid = min(list(self.threads.keys())) - 1
+        return lowest_tid
+    
+    def walk_pypylog(self, pypylog):
+        tid = self.get_unused_tid()
+        plthread = None
+        if tid not in self.threads:
+            plthread = self.threads[tid] = Thread()
+            plthread.name = "PyPyLog"
+            plthread.tid = tid
+        if plthread and pypylog:
+            for i in range(int(len(pypylog)/2)):
+                log = pypylog[2 * i]
+                logname = log[1]
+                logtime = log[0]
+                if "gc" in logname:
+                    category = CATEGORY_GC
+                elif "jit" in logname:
+                    category = CATEGORY_JIT
+                frameindex = plthread.add_frame(logname, -1, "", -1, -1)
+                stackindex = plthread.add_stack([frameindex], [category])
+                plthread.add_sample(stackindex, logtime, 7)
     
     def walk_samples(self, stats):
         dummyeventdelay = 7
@@ -281,7 +309,7 @@ class Converter:
         categorys.append(
             {
                 "name": "JIT",
-                "color": "green",
+                "color": "purple",
                 "subcategories": [
                     "Other"
                 ]
@@ -316,8 +344,8 @@ class Converter:
         )
         categorys.append(
             {
-                "name": "PyPyLog",
-                "color": "lightred",
+                "name": "Garbage Collection",
+                "color": "green",
                 "subcategories": [
                     "Other"
                 ]
