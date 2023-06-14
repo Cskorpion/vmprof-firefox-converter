@@ -48,7 +48,7 @@ def write_file_dict(file_dict, sharezip):
     #dump dict with real paths to new filenames mapping
     os.mkdir("tmp")
     with open("tmp/dict.json", "w") as dict_file:
-        dict_file.write(json.dumps(file_dict))
+        dict_file.write(json.dumps(file_dict, indent = 2))
     sharezip.write("tmp/dict.json", "dict.json")
     os.remove("tmp/dict.json")
     os.rmdir("tmp")
@@ -59,7 +59,7 @@ def save_zip(zip_path, path_dict):
     with ZipFile(zip_path, "w") as sharezip:
         ctr = 0
         for path in list(path_dict.keys()):
-            new_filename = "file" + str(ctr)
+            new_filename = str(ctr) + "_" + os.path.basename(path_dict[path])
             sharezip.write(path_dict[path], new_filename)# new filename to prevent duplicate names
             file_dict[path] = new_filename
             ctr += 1
