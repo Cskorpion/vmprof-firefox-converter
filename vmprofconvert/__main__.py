@@ -6,6 +6,7 @@ import subprocess
 import platform
 import argparse
 import time
+import atexit
 from zipfile import ZipFile
 from vmprofconvert import convert_stats_with_pypylog
 from symbolserver import start_server 
@@ -56,6 +57,9 @@ def write_file_dict(file_dict, sharezip):
 
 def save_zip(zip_path, path_dict):
     file_dict = {}
+    if "times" in path_dict:
+        file_dict["times"] = path_dict["times"]
+        path_dict.pop("times")
     with ZipFile(zip_path, "w") as sharezip:
         ctr = 0
         for path in list(path_dict.keys()):
@@ -64,18 +68,58 @@ def save_zip(zip_path, path_dict):
             file_dict[path] = new_filename
             ctr += 1
         write_file_dict(file_dict, sharezip)
+
+def load_zip_dict(zip_path, folder):
+    zip_dict = None
+    dict_path = None
+    with ZipFile(zip_path, "r") as inputzip:# open zip extract dict
+        dict_path = inputzip.extract("dict.json", folder)
+    if dict_path:
+        with open(dict_path, "r") as file_dict:# read zip_dict
+            zip_dict = json.loads(file_dict.read())
+    os.remove(dict_path)
+    return zip_dict
+
+def extract_files(zip_dict, zip_path, folder):
+    new_file_paths = {}
+    with ZipFile(zip_path, "r") as inputzip:# open zip, extract files listed in zip_dict
+        for path in list(zip_dict.keys()):
+            filename = zip_dict[path]
+            new_file_paths[path] = inputzip.extract(filename, folder)
+    return new_file_paths
             
+def cleanup(folder, path_dict):
+    path_dict["json"] = path_dict["prof"] + ".json"# json is created, not loaded
+    for path in path_dict:
+        os.remove(path_dict[path])
+    os.rmdir(folder)
+
+def get_paths(path_dict):
+    path = None
+    jitlogpath = None
+    pypylogpath = None
+    if "prof" in path_dict:
+        path = path_dict["prof"]
+    if "jitlog" in path_dict:
+        jitlogpath = path_dict["jitlog"]
+    if "pypylog" in path_dict:
+        pypylogpath = path_dict["pypylog"]
+    return path, jitlogpath, pypylogpath
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="vmprof-firefox-converter")
-    parser.add_argument("-convert", metavar = "vmprof_file", dest = "vmprof_file", nargs = 1, help = "convert vmprof profile")
+    parser.add_argument("-convert", metavar = "convert_file", dest = "convert_file", nargs = 1, help = "convert vmprof profile")
     parser.add_argument("-jitlog", metavar = "jitlog_file", dest = "jitlog_file", nargs = 1, help = "use jitlog data")
     parser.add_argument("-run", metavar = "python_file args", dest = "python_file", nargs = "+", help = "run vmprof and convert profile")
-    parser.add_argument("--nobrowser", action = "store_false", dest = "browser", default = "true", help = "dont open firefox profiler")
-    parser.add_argument("--zip", action = "store_true", dest = "zip", default = "false", help = "save profile as sharable zip file")
+    parser.add_argument("--nobrowser", action = "store_false", dest = "browser", default = True, help = "dont open firefox profiler")
+    parser.add_argument("--zip", action = "store_true", dest = "zip", default = False, help = "save profile as sharable zip file")
 
     args = parser.parse_args()
 
     zip_path = None
+    pypylogpath = None
+    jitlogpath = None
+    times = None
 
     if args.python_file:
         path, jitlogpath, pypylogpath, times = run_vmprof(args.python_file[0], args.python_file[1:])
@@ -85,15 +129,22 @@ if __name__ == "__main__":
             pypylogpath = os.path.abspath(pypylogpath)
         if args.zip:
             zip_path = path.replace(".prof", ".zip")
-    elif args.vmprof_file:
-        path = args.vmprof_file[0]
-        if args.zip:
-            zip_path = path.replace(".prof", ".zip")
-        pypylogpath = None
-        jitlogpath = None
-        times = None
-        if args.jitlog_file:
-            jitlogpath = os.path.abspath(args.jitlog_file[0])
+    elif args.convert_file:
+        if ".zip" in args.convert_file[0]:
+            extracted_folder = "tmp"
+            zip_dict = load_zip_dict(args.convert_file[0], extracted_folder)
+            if "times" in zip_dict:
+                times = zip_dict["times"]
+                zip_dict.pop("times")
+            path_dict = extract_files(zip_dict, args.convert_file[0],  extracted_folder)
+            path, jitlogpath, pypylogpath = get_paths(path_dict)
+            atexit.register(cleanup, extracted_folder, path_dict)
+        else:
+            path = args.convert_file[0]
+            if args.zip:
+                zip_path = path.replace(".prof", ".zip")
+            if args.jitlog_file:
+                jitlogpath = os.path.abspath(args.jitlog_file[0])
             
     abspath = os.path.abspath(path)
 
@@ -109,8 +160,9 @@ if __name__ == "__main__":
                 path_dict["jitlog"] = jitlogpath
             if pypylogpath:
                 path_dict["pypylog"] = pypylogpath
+                path_dict["times"] = list(times)
             save_zip(zip_path, path_dict)
-        if pypylogpath and os.path.exists(pypylogpath):
+        if pypylogpath and os.path.exists(pypylogpath) and not args.convert_file:
             os.remove(pypylogpath)
     if args.browser:
         webbrowser.open(url, new=0, autoraise=True)

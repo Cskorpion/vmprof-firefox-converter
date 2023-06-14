@@ -10,7 +10,7 @@ from vmprofconvert import Converter
 from vmprofconvert import Thread
 from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
-from vmprofconvert.__main__ import write_file_dict, save_zip
+from vmprofconvert.__main__ import write_file_dict, save_zip, load_zip_dict, extract_files
 
 class Dummystats():
     def __init__(self, profiles):
@@ -569,3 +569,71 @@ def test_save_zip():
     assert filecontent["C:\\users\\myself\\frog.jitlog"] == "0x17"
 
 
+def test_load_zip_dict():
+    file_dict = {
+        "duck.py": "duck.py",
+        "/home/users/me/goose.prof": "goose.prof",
+        "C:\\users\\myself\\frog.jitlog": "frog.jitlog"
+    }
+
+    zip_folder = "tmpzip"
+    zip_path = os.path.join(zip_folder, "examplezip.zip")
+   
+    os.mkdir(zip_folder)
+
+    with ZipFile(zip_path, "w") as examplezip:# create zip file and write file_dict
+        write_file_dict(file_dict, examplezip)
+    
+    zip_dict = load_zip_dict(zip_path, zip_folder)
+
+    os.remove(zip_path)# cleanup
+    os.rmdir(zip_folder)
+
+    assert zip_dict == file_dict
+    
+def test_extract_files():
+    file_dict = {
+        "duck.py": "duck.py",
+        "/home/users/me/goose.prof": "goose.prof",
+        "C:\\users\\myself\\frog.jitlog": "frog.jitlog"
+    }
+
+    with open(file_dict["duck.py"], "w") as file_a:# create dummy files
+        file_a.write("print(\"quack\")")
+
+    with open(file_dict["/home/users/me/goose.prof"], "w") as file_b:# create dummy files
+        file_b.write("0x7")
+
+    with open(file_dict["C:\\users\\myself\\frog.jitlog"], "w") as file_c:# create dummy files
+        file_c.write("0x17")
+
+    extract_folder = "extracted"
+    zip_folder = "tmpzip"
+    zip_path = zip_folder + "/examplezip.zip"
+   
+    os.mkdir(zip_folder)
+
+    save_zip(zip_path, file_dict)# save dummy files in zip with dict
+
+    os.remove(file_dict["duck.py"])# remove local dummy files
+    os.remove(file_dict["/home/users/me/goose.prof"])
+    os.remove(file_dict["C:\\users\\myself\\frog.jitlog"])
+
+    zip_dict = load_zip_dict(zip_path, zip_folder)
+
+    new_file_paths = extract_files(zip_dict, zip_path, extract_folder)
+
+    filecontent = {}
+    for path in list(new_file_paths.keys()):# load content of extracted files 
+        with open(new_file_paths[path], "r") as file:
+            filecontent[path] = file.read()
+
+    os.remove(zip_path)# cleanup
+    os.rmdir(zip_folder)
+    for file in new_file_paths:
+        os.remove(new_file_paths[file])
+    os.rmdir(extract_folder)
+
+    assert filecontent["duck.py"] == "print(\"quack\")"
+    assert filecontent["/home/users/me/goose.prof"] == "0x7"
+    assert filecontent["C:\\users\\myself\\frog.jitlog"] == "0x17"
