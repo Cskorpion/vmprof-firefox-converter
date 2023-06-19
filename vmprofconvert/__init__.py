@@ -13,6 +13,7 @@ CATEGORY_ASM = 4
 CATEGORY_JIT_INLINED = 5
 CATEGORY_MIXED = 6
 CATEGORY_GC = 7
+CATEGORY_INTERPRETER = 8
 
 def convert(path):
     stats = vmprof.read_profile(path)
@@ -91,17 +92,36 @@ class Converter:
             plthread.name = "PyPyLog"
             plthread.tid = tid
         if plthread and pypylog:
+            plthread.create_pypylog_marker(pypylog)
             for i in range(int(len(pypylog)/2)):
-                log = pypylog[2 * i]
-                logname = log[1]
-                logtime = log[0]
-                if "gc" in logname:
-                    category = CATEGORY_GC
-                elif "jit" in logname:
-                    category = CATEGORY_JIT
-                frameindex = plthread.add_frame(logname, -1, "", -1, -1)
-                stackindex = plthread.add_stack([frameindex], [category])
-                plthread.add_sample(stackindex, logtime, 7)
+                log_start = pypylog[2 * i]
+                log_end = pypylog[2 * i + 1]
+                logname = log_start[1]
+                logtime_start = log_start[0]
+                logtime_end = log_end[0]
+                self.add_pypylog_sample(plthread, logname, logtime_start, logtime_end)
+                if i < ((len(pypylog)/2) - 2):
+                    next_log = pypylog[2 * i + 2]
+                    next_logtime_start = next_log[0]
+                    if abs(logtime_end - next_logtime_start) > 2:
+                        self.add_pypylog_interp_sample(plthread, logtime_end + 1, next_logtime_start - 1)
+                
+    def add_pypylog_sample(self, thread, logname, logtime_start, logtime_end):
+        if "gc" in logname:
+            category = CATEGORY_GC
+        elif "jit" in logname:
+            category = CATEGORY_JIT
+        frameindex = thread.add_frame(logname, -1, "", -1, -1)
+        stackindex = thread.add_stack([frameindex], [category])
+        thread.add_sample(stackindex, logtime_start, 7)
+        thread.add_sample(stackindex, logtime_end, 7)
+
+    def add_pypylog_interp_sample(self, thread, logtime_end, next_logtime_start):
+        frameindex = thread.add_frame("interp", -1, "", -1, -1)
+        stackindex = thread.add_stack([frameindex], [CATEGORY_INTERPRETER])
+        thread.add_sample(stackindex, logtime_end, 7)
+        thread.add_sample(stackindex, next_logtime_start, 7)
+
     
     def walk_samples(self, stats):
         dummyeventdelay = 7
@@ -110,7 +130,7 @@ class Converter:
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
-        for i, sample in enumerate(stats.profiles):# translate_profile 224
+        for i, sample in enumerate(stats.profiles):
             frames = []
             categorys = []
             stack_info, _, tid, memory = sample
@@ -359,7 +379,15 @@ class Converter:
                 ]
             }
         )
-        
+        categorys.append(
+            {
+                "name": "Interpreter",
+                "color": "yellow",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        )
         return categorys
            
     def dump_counters(self):
@@ -409,6 +437,7 @@ class Thread:
         self.markers = []# list of [startime, endtime, stringindex]
 
     def create_pypylog_marker(self, pypylog):
+        interperter_string_id = self.add_string("interpreter")
         for i in range(int(len(pypylog)/2)):
             start_log = pypylog[2*i]
             stop_log = pypylog[2*i+1]
@@ -417,6 +446,11 @@ class Thread:
             name = start_log[1]
             st_id = self.add_string(name)
             self.add_marker(starttime, endtime, st_id)
+            if i < ((len(pypylog)/2) - 2):
+                next_log = pypylog[2 * i + 2]
+                next_logtime_start = next_log[0]
+                if abs(endtime - next_logtime_start) > 2:
+                    self.add_marker(endtime + 1, next_logtime_start - 1, interperter_string_id)
             
     def add_marker(self, starttime, endtime, stringtable_index):
         self.markers.append([starttime, endtime, stringtable_index])

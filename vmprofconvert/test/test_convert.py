@@ -8,7 +8,7 @@ from vmprofconvert import convert_vmprof, convert_stats_with_pypylog
 from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
-from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED
+from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
 from vmprofconvert.__main__ import write_file_dict, save_zip, load_zip_dict, extract_files
 
@@ -436,10 +436,10 @@ def test_create_pypylog_marker():
     rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000000)
     filtered_pypylog = filter_top_level_logs(rescaled_pypylog[:20])
     t.create_pypylog_marker(filtered_pypylog)
-    assert t.markers[0] == [0, 10, 0]
-    assert t.markers[1] == [20, 30, 1]
-    assert t.markers[2] == [40, 50, 1]
-    assert t.markers[3] == [60, 90, 2]
+    assert t.markers[0] == [0, 10, 1]#gc or jit
+    assert t.markers[1] == [11, 19, 0]#interp
+    assert t.markers[2] == [20, 30, 2]#gc or jit
+    assert t.markers[3] == [31, 39, 0]#interp
 
 def test_get_unused_tid():
     c = Converter()
@@ -448,6 +448,29 @@ def test_get_unused_tid():
     c.threads[17] = Thread()
     unused_tid = c.get_unused_tid()
     assert unused_tid == 1
+
+def test_add_pypylog_sample():
+    c = Converter()
+    thread = Thread()
+    logname = "gc_dummy"
+    logtime_start = 7
+    logtime_end = 17
+    c.add_pypylog_sample(thread, logname, logtime_start, logtime_end)
+    samples = thread.samples
+    assert samples[0] == [0, 7, 7]
+    assert samples[1] == [0, 17, 7]
+
+def test_add_pypylog_interp_sample():
+    c = Converter()
+    thread = Thread()
+    logtime_end = 17
+    next_logtime_start = 117
+    c.add_pypylog_interp_sample(thread, logtime_end, next_logtime_start)
+    samples = thread.samples
+    stacktable = thread.stacktable
+    assert samples[0] == [0, 17, 7]
+    assert samples[1] == [0, 117, 7]
+    assert stacktable[0] == [0, None, CATEGORY_INTERPRETER]
 
 def test_walk_pypylog():
     c = Converter()
@@ -458,7 +481,8 @@ def test_walk_pypylog():
     c.walk_pypylog(test_pypylog)
     t = c.threads[7]
     stringarray = t.stringarray
-    assert stringarray[0] == "gc_example_action_a"
+    assert stringarray[0] == "interpreter"
+    assert stringarray[1] == "gc_example_action_a"
     
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
@@ -480,7 +504,8 @@ def test_dumps_vmprof_with_pypylog():
     samples = profile["threads"][0]["samples"] 
     stringarray = profile["threads"][1]["stringArray"]
     assert len(samples["stack"]) == 5551
-    assert stringarray[0] == "gc-set-nursery-size"
+    assert stringarray[0] == "interpreter"
+    assert stringarray[1] == "gc-set-nursery-size"
 
 def test_write_file_dict():
     file_dict = {
