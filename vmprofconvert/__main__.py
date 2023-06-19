@@ -11,7 +11,7 @@ from zipfile import ZipFile
 from vmprofconvert import convert_stats_with_pypylog
 from symbolserver import start_server 
 
-def run_vmprof(path, argv, native):
+def run_vmprof(path, argv, native, lines):
     profpath = path.replace(".py", ".prof")
     impl = platform.python_implementation()
     system = platform.system()
@@ -27,7 +27,8 @@ def run_vmprof(path, argv, native):
         pypylogpath = path.replace(".py", ".pypylog")
         env["PYPYLOG"] = pypylogpath
     if impl == "CPython":
-        args += " --lines"
+        if lines:
+            args += " --lines"
         if system == "Linux" or system == "Darwin":
             args += " --mem"
     if not native:
@@ -116,6 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--nobrowser", action = "store_false", dest = "browser", default = True, help = "dont open firefox profiler")
     parser.add_argument("--zip", action = "store_true", dest = "zip", default = False, help = "save profile as sharable zip file")
     parser.add_argument("--nonative", action = "store_false", dest = "native", default = True, help = "disable native profiling")
+    parser.add_argument("--nolines", action = "store_false", dest = "lines", default = True, help = "disable line profiling")
 
     args = parser.parse_args()
 
@@ -125,7 +127,7 @@ if __name__ == "__main__":
     times = None
 
     if args.python_file:
-        path, jitlogpath, pypylogpath, times = run_vmprof(args.python_file[0], args.python_file[1:], args.native)
+        path, jitlogpath, pypylogpath, times = run_vmprof(args.python_file[0], args.python_file[1:], args.native, args.lines)
         if jitlogpath is not None:
             jitlogpath = os.path.abspath(jitlogpath)
         if pypylogpath is not None:
