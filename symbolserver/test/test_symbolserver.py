@@ -1,7 +1,14 @@
 import os
 from jitlog.parser import parse_jitlog
-from symbolserver import get_jitlog_ir 
+from symbolserver import get_jitlog_ir , bc_to_str
 from symbolserver import get_mp_data, get_sourceline, get_bc_instruction, insert_code, code_dict_to_list, get_ir_code, ir_to_str, get_code_object
+
+class Dummyinstruction:
+    def __init__(self, str):
+        self.__str__ = str
+    
+    def _disassemble(self):
+        return self.__str__
 
 def test_get_jitlog_ir():
     path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof.jit")
@@ -123,6 +130,15 @@ def test_ir_to_str():
     expected_ir_str = "guard_value(i4, 4, @<ResumeGuardDescr object at 0x177f580>)"
 
     assert ir_string == expected_ir_str
+
+def test_bc_to_str():
+    bc0 = Dummyinstruction("55 LOAD_FAST         2 (float)")
+    bc1 = Dummyinstruction("55   >>>>>   CALL_FUNCTION         4 (started)")
+    pretty_bc0 = bc_to_str(bc0)
+    pretty_bc1 = bc_to_str(bc1)
+
+    assert pretty_bc0 == "LOAD_FAST 2 (float)"
+    assert pretty_bc1 == "CALL_FUNCTION 4 (started)"
 
 def test_get_example_bytecode():
     jitpath = os.path.join(os.path.dirname(__file__), "profiles/example.jitlog")

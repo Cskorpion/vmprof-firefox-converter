@@ -1,6 +1,7 @@
 import os 
 import json
 import dis
+import re
 from jitlog.parser import parse_jitlog
 from flask import Flask
 from flask import request
@@ -86,7 +87,8 @@ def get_advanced_code(jitpath, addr):
         if py_line is not None:
             codeobject = get_code_object(ir[0])
             bc_instr = get_bc_instruction(codeobject, ir[2], ir[1], ir[3])
-            insert_code(code, key, py_line, bc_instr, ir_code[i + 1])
+            bc_str = bc_to_str(bc_instr)
+            insert_code(code, key, py_line, bc_str, ir_code[i + 1])
     return code_dict_to_list(code)
 
 def get_ir_code(stage_opt):
@@ -104,17 +106,23 @@ def insert_code(code, key, py_line, bc_instr, ir_instr):
             code[key] = {
                 "py_line": py_line.strip(),
                 "bc": [{
-                    "bc_line": str(bc_instr).strip(),
+                    "bc_line": bc_instr,
                     "ir_code": ir_instr 
                     }
                 ]
             }
         else:
             nd = {
-                "bc_line": str(bc_instr).strip(),
+                "bc_line": bc_instr,
                 "ir_code": ir_instr 
             }
             code[key]["bc"].append(nd)
+
+def bc_to_str(bc_instr):
+    bc = re.sub(" +", " ", bc_instr._disassemble())
+    while not bc[0].isalpha():
+        bc = bc[1:]
+    return bc.strip()
 
 def code_dict_to_list(code):
     index = 0
