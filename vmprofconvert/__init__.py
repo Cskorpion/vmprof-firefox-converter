@@ -169,12 +169,13 @@ class Converter:
 
     def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, j):# native or python frame
         funcname = addr_info[1]
+        funcline = addr_info[2]
         filename = addr_info[3]
         lib_index = self.add_lib(filename)
         if lineprof:
             return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, lib_index, -1)# vmprof python line indexes are negative
         else:
-            return thread.add_frame(funcname, -1, filename, lib_index, -1)
+            return thread.add_frame(funcname, funcline, filename, lib_index, -1)
 
     def add_jit_frame(self, thread, categorys, addr_info, frames):
         funcname = addr_info[1]
