@@ -83,7 +83,8 @@ def get_advanced_code(jitpath, addr):
     code["pre"] = ir_code[0] # ir code from before first py line 
     for i, ir in enumerate(mp_data):
         key = ir[0] + str(ir[1])
-        py_line = get_sourceline(ir[0], ir[1])
+        py_line = get_sourceline(ir[0], ir[1]).replace("\n", "")
+        py_line += "  #" + ir[0] + ":" + str(ir[1])
         if py_line is not None:
             codeobject = get_code_object(ir[0])
             bc_instr = get_bc_instruction(codeobject, ir[2], ir[1], ir[3])
