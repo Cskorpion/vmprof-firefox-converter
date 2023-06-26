@@ -53,26 +53,28 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
 class Converter:
     def __init__(self):
         self.threads = {}
-        self.counters = []#
-        self.libs = []# strings 
+        self.counters = []
+        self.libs = []# list of [name, debugname]
         self.libs_positions = {}# key is string
     
-    def add_lib(self, string):
-        if string == "-":
+    def add_lib(self, name, debugname):
+        if name == "-":
             return -1
-        if string in self.libs_positions:
-            return self.libs_positions[string]
+        key = (name, debugname)
+        if key in self.libs_positions:
+            return self.libs_positions[key]
         else:
             libs_index = len(self.libs)
-            self.libs.append(string)
-            self.libs_positions[string] = libs_index
+            self.libs.append([name, debugname])
+            self.libs_positions[key] = libs_index
             return libs_index
         
     def create_path_dict(self):
         path_dict = {}
         for lib in self.libs:
-            if os.path.exists(lib):
-                path_dict[lib] = os.path.abspath(lib)
+            name, _ = lib
+            if os.path.exists(name):
+                path_dict[name] = os.path.abspath(name)
         return path_dict
     
     def create_pypylog_marker(self, pypylog, tid):
@@ -171,7 +173,7 @@ class Converter:
         funcname = addr_info[1]
         funcline = addr_info[2]
         filename = addr_info[3]
-        lib_index = self.add_lib(filename)
+        lib_index = self.add_lib(filename, funcname)
         if lineprof:
             return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, lib_index, -1)# vmprof python line indexes are negative
         else:
@@ -189,7 +191,7 @@ class Converter:
         else:
             categorys.append(CATEGORY_JIT)
         if addr_info is not None and int(addr_info[2]) >= 0:
-            lib_index = self.add_lib(filename)
+            lib_index = self.add_lib(filename, funcname)
             return thread.add_frame(funcname, int(addr_info[2]), filename, lib_index, -1)# vmprof jit line indexes are positive
         else:
             return thread.add_frame(funcname, -1, filename, -1, -1)
@@ -247,12 +249,13 @@ class Converter:
     def dump_libs(self):
         liblist = []
         for lib in self.libs:
+            name, debugname = lib
             liblist.append(
                 {
-                    "name": lib,
-                    "path": lib,
-                    "debugName": lib,
-                    "debugPath": lib,
+                    "name": name,
+                    "path": name,
+                    "debugName": debugname,
+                    "debugPath": name,
                     "arch": ""
                 }
             )

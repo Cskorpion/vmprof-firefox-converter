@@ -51,10 +51,10 @@ def asm():
         jsonobj = json.loads(request.data)
         addr = jsonobj["startAddress"]
         if isinstance(addr, str) and addr != "0x-1":
-            addr = int(addr ,16)
+            addr = int(addr, 16)
         response["startAddress"] = "0x0"
-        #code = get_jitlog_ir(jitlogpath, addr)
-        code = get_advanced_code(jitlogpath, addr)
+        funcname = jsonobj["debugName"]
+        code = get_advanced_code(jitlogpath, addr, funcname)
         if len(code) != 0:
             response["instructions"] = code
             response["size"] = len(code)
@@ -70,7 +70,7 @@ def get_code_object(path):
         codeobj_dict[path] = compile(content, path, "exec")
         return codeobj_dict[path]
 
-def get_advanced_code(jitpath, addr):
+def get_advanced_code(jitpath, addr, funcname):
     code = {}
     if jitpath is None or not os.path.exists(jitpath):
         return []
@@ -80,8 +80,10 @@ def get_advanced_code(jitpath, addr):
         return []
     mp_data = get_mp_data(trace)
     ir_code = get_ir_code(trace.stages["opt"])
-    code["pre"] = ir_code[0] # ir code from before first py line 
+    code["pre"] = ir_code[0]# ir code from before first py line 
     for i, ir in enumerate(mp_data):
+        if ir[2] != funcname:# sometimes there is all the ir code in a single asm frame
+            continue
         key = ir[0] + str(ir[1])
         py_line = get_sourceline(ir[0], ir[1]).replace("\n", "")
         py_line += "  #" + ir[0] + ":" + str(ir[1])

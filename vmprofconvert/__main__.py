@@ -40,7 +40,7 @@ def run_vmprof(path, argv, native, lines):
             cmd_args += " " + arg
     
     start_time = time.time()
-
+    
     command = sys.executable + " -m vmprof" + args + " " + path + cmd_args
     subprocess.run(command, shell=True, env=env)
 

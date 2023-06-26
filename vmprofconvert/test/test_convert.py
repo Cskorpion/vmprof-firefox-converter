@@ -366,12 +366,12 @@ def test_add_vmprof_frame():
 
 def test_add_lib():
     c = Converter()
-    lib_index0 = c.add_lib("duck.py")
-    lib_index1 = c.add_lib("duck.py")
-    lib_index2 = c.add_lib("goose.py")
+    lib_index0 = c.add_lib("duck.py", "func_a")
+    lib_index1 = c.add_lib("duck.py", "func_a")
+    lib_index2 = c.add_lib("goose.py", "func_b")
     assert lib_index0 == lib_index1
     assert lib_index1 == lib_index2 - 1
-    assert c.libs == ["duck.py", "goose.py"]# Not in a thread
+    assert c.libs == [["duck.py","func_a"],["goose.py", "func_b"]]# Not in a thread
 
 def test_add_native_symbol():
     t = Thread()
