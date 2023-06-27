@@ -110,8 +110,8 @@ def get_paths(path_dict):
     return path, jitlogpath, pypylogpath
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="vmprof-firefox-converter")
-    parser.add_argument("-convert", metavar = "convert_file", dest = "convert_file", nargs = 1, help = "convert vmprof profile")
+    parser = argparse.ArgumentParser(prog="vmprof-firefox-converter", description="convert vmprof profiles or run vmprof directly")
+    parser.add_argument("-convert", metavar = "convert_file", dest = "convert_file", nargs = 1, help = "convert vmprof profile or zip")
     parser.add_argument("-jitlog", metavar = "jitlog_file", dest = "jitlog_file", nargs = 1, help = "use jitlog data")
     parser.add_argument("-run", metavar = "python_file args", dest = "python_file", nargs = "+", help = "run vmprof and convert profile")
     parser.add_argument("--nobrowser", action = "store_false", dest = "browser", default = True, help = "dont open firefox profiler")
