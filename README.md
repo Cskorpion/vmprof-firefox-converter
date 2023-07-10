@@ -24,7 +24,7 @@ optional arguments:
 
 <img src="images/firefox.png">
 
-cpuburn code can be found dd
+cpuburn code can be found
 [here](https://github.com/vmprof/vmprof-python/blob/master/vmprof/test/cpuburn.py)
 
 #
