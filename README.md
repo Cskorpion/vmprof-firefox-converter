@@ -22,6 +22,8 @@ optional arguments:
 
 `--nolines` disable line profiling (only for running vmprof)
 
+<img src="images/firefox.png">
+
 #
 
 - supports CPython and PyPy
