@@ -31,9 +31,13 @@ def source():
     if request.data is not None:
         jsonobj = json.loads(request.data)
         response["file"] = jsonobj["file"]
-        if response["file"] is not None:
-            if os.path.exists(response["file"]):
-                with open(response["file"], "r") as file:
+        file = response["file"]
+        if path_dict is not None:
+            if file in path_dict:
+                file = path_dict[file]
+        if file is not None:
+            if os.path.exists(file):
+                with open(file, "r") as file:
                     response["source"] = file.read()
                 return json.dumps(response)
     return response
@@ -60,7 +64,10 @@ def asm():
             response["size"] = len(code)
     return json.dumps(response)
 
-def get_code_object(path):
+def get_code_object(path, path_dict):
+    if path_dict is not None:
+        if path in path_dict:
+            path = path_dict[path]
     if path in codeobj_dict:
         return codeobj_dict[path]
     else:
@@ -85,10 +92,10 @@ def get_advanced_code(jitpath, addr, funcname):
         if ir[2] != funcname:# sometimes there is all the ir code in a single asm frame
             continue
         key = ir[0] + str(ir[1])
-        py_line = get_sourceline(ir[0], ir[1]).replace("\n", "")
+        py_line = get_sourceline(ir[0], ir[1], path_dict).replace("\n", "")
         py_line += "  #" + ir[0] + ":" + str(ir[1])
         if py_line is not None:
-            codeobject = get_code_object(ir[0])
+            codeobject = get_code_object(ir[0], path_dict)
             bc_instr = get_bc_instruction(codeobject, ir[2], ir[1], ir[3])
             bc_str = bc_to_str(bc_instr)
             insert_code(code, key, py_line, bc_str, ir_code[i + 1])
@@ -193,7 +200,10 @@ def get_bc_instruction(codeobject, funcname, linenumber, offset):
         if inst.offset == offset:
             return inst
     
-def get_sourceline(path, line):
+def get_sourceline(path, line, path_dict):
+    if path_dict is not None:
+        if path in path_dict:
+            path = path_dict[path]
     if path is None or not os.path.exists(path):
         return None
     sourcelines = []
@@ -206,8 +216,9 @@ def get_sourceline(path, line):
         return sourcelines[line]
     return None
 
-def start_server(jsonpath, jitlog):
-    global profilepath , jitlogpath
+def start_server(jsonpath, jitlog, pathdict):
+    global profilepath , jitlogpath, path_dict
     profilepath = jsonpath
     jitlogpath = jitlog
+    path_dict = pathdict
     flaskapp.run() 

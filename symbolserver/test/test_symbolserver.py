@@ -43,7 +43,7 @@ def test_get_bytecode():
 
 def test_get_source_line():
     path = os.path.join(os.path.dirname(__file__), "profiles/bctest.py")
-    line = get_sourceline(path, 4)# merge_point line starts at 1
+    line = get_sourceline(path, 4, {})# merge_point line starts at 1
 
     assert line.strip() == "self.name = \"Floppa\""
 
@@ -146,7 +146,7 @@ def test_get_example_bytecode():
     forest = parse_jitlog(jitpath)
     trace = forest.get_trace_by_addr(140249103068976)
     mp_data = get_mp_data(trace)
-    codeobject = get_code_object(pypath)
+    codeobject = get_code_object(pypath, {})
     bc_instr = get_bc_instruction(codeobject, mp_data[2][2], mp_data[2][1], mp_data[2][3])    
 
     assert mp_data[2] == ("example.py", 3, "function_a", 12)

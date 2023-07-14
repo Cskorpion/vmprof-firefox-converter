@@ -157,18 +157,18 @@ if __name__ == "__main__":
     url += "/?symbolServer=http%3A%2F%2F127.0.0.1%3A5000%2F"
 
     with open(abspath + ".json", "w") as output_file:
-        json_profile, path_dict = convert_stats_with_pypylog(abspath, pypylogpath, times)
+        json_profile, new_path_dict = convert_stats_with_pypylog(abspath, pypylogpath, times)
         output_file.write(json.dumps(json.loads(json_profile), indent=2))
         if args.zip:
-            path_dict["prof"] = abspath
+            new_path_dict["prof"] = abspath
             if jitlogpath:
-                path_dict["jitlog"] = jitlogpath
+                new_path_dict["jitlog"] = jitlogpath
             if pypylogpath:
-                path_dict["pypylog"] = pypylogpath
-                path_dict["times"] = list(times)
-            save_zip(zip_path, path_dict)
+                new_path_dict["pypylog"] = pypylogpath
+                new_path_dict["times"] = list(times)
+            save_zip(zip_path, new_path_dict)
         if pypylogpath and os.path.exists(pypylogpath) and not args.convert_file:
             os.remove(pypylogpath)
     if args.browser:
         webbrowser.open(url, new=0, autoraise=True)
-        start_server(abspath + ".json", jitlogpath)
+        start_server(abspath + ".json", jitlogpath, path_dict)
