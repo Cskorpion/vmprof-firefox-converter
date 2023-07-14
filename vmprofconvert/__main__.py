@@ -125,6 +125,7 @@ if __name__ == "__main__":
     pypylogpath = None
     jitlogpath = None
     times = None
+    path_dict = None
 
     if args.python_file:
         path, jitlogpath, pypylogpath, times = run_vmprof(args.python_file[0], args.python_file[1:], args.native, args.lines)
