@@ -76,10 +76,10 @@ def test_functable():
 
 def test_sampleslist():
     t = Thread()
-    t.add_sample(0, 7, 3)# samples with same stack
-    t.add_sample(0, 13, 3)# samples with same stack
-    t.add_sample(1, 17, 4)
-    assert t.samples == [[0, 7, 3], [0, 13, 3], [1, 17, 4]]
+    t.add_sample(0, 7)# samples with same stack
+    t.add_sample(0, 13)# samples with same stack
+    t.add_sample(1, 17)
+    assert t.samples == [[0, 7], [0, 13], [1, 17]]
 
 def test_walksamples():
     c = Converter()
@@ -108,7 +108,7 @@ def test_walksamples():
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
     assert t.frametable == [[0, 0, 7], [1, 1, 17], [2, 2, 117]]# stringtableindex, nativesymbol_index
     assert t.stacktable == [[0, None, CATEGORY_PYTHON], [1, 0, CATEGORY_PYTHON], [2, 0, CATEGORY_PYTHON]]
-    assert t.samples == [[1, 0.0, 7], [2, 5000.0, 7]]# stackindex time dummyeventdelay = 7
+    assert t.samples == [[1, 0.0], [2, 5000.0]]# stackindex time dummyeventdelay = 7
 
 def test_walksample_vmprof():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")
@@ -457,8 +457,8 @@ def test_add_pypylog_sample():
     logtime_end = 17
     c.add_pypylog_sample(thread, logname, logtime_start, logtime_end)
     samples = thread.samples
-    assert samples[0] == [0, 7, 7]
-    assert samples[1] == [0, 17, 7]
+    assert samples[0] == [0, 7]
+    assert samples[1] == [0, 17]
 
 def test_add_pypylog_interp_sample():
     c = Converter()
@@ -468,8 +468,8 @@ def test_add_pypylog_interp_sample():
     c.add_pypylog_interp_sample(thread, logtime_end, next_logtime_start)
     samples = thread.samples
     stacktable = thread.stacktable
-    assert samples[0] == [0, 17, 7]
-    assert samples[1] == [0, 117, 7]
+    assert samples[0] == [0, 17]
+    assert samples[1] == [0, 117]
     assert stacktable[0] == [0, None, CATEGORY_INTERPRETER]
 
 def test_walk_pypylog():

@@ -115,18 +115,17 @@ class Converter:
             category = CATEGORY_JIT
         frameindex = thread.add_frame(logname, -1, "", -1, -1)
         stackindex = thread.add_stack([frameindex], [category])
-        thread.add_sample(stackindex, logtime_start, 7)
-        thread.add_sample(stackindex, logtime_end, 7)
+        thread.add_sample(stackindex, logtime_start)
+        thread.add_sample(stackindex, logtime_end)
 
     def add_pypylog_interp_sample(self, thread, logtime_end, next_logtime_start):
         frameindex = thread.add_frame("interp", -1, "", -1, -1)
         stackindex = thread.add_stack([frameindex], [CATEGORY_INTERPRETER])
-        thread.add_sample(stackindex, logtime_end, 7)
-        thread.add_sample(stackindex, next_logtime_start, 7)
+        thread.add_sample(stackindex, logtime_end)
+        thread.add_sample(stackindex, next_logtime_start)
 
     
     def walk_samples(self, stats):
-        dummyeventdelay = 7
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
         category_dict = {}
@@ -165,7 +164,7 @@ class Converter:
                     frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines, j))
                    
             stackindex = thread.add_stack(frames, categorys)
-            thread.add_sample(stackindex, i * sampletime, dummyeventdelay)
+            thread.add_sample(stackindex, i * sampletime)
             if stats.profile_memory == True:
                 self.counters.append([i * sampletime, memory * 1000])
 
@@ -433,7 +432,7 @@ class Thread:
         self.funtable_positions = {}
         self.frametable = []# list of [functable_index, nativesymbol_index, line]   
         self.frametable_positions = {}# key is string
-        self.samples = []# list of [stackindex, time in ms, eventdely in ms], no need for sample_positions
+        self.samples = []# list of [stackindex, time in ms], no need for sample_positions
         self.nativesymbols = []# list of [libindex, stringindex, addr]
         self.nativesymbols_positions = {}# key is (libindex, string)
         self.resourcetable = []# list of [libindex, stringindex]
@@ -512,8 +511,8 @@ class Thread:
             self.frametable_positions[key] = frametable_index
             return frametable_index
         
-    def add_sample(self, stackindex, time, eventdelay):
-        self.samples.append([stackindex, time, eventdelay]) # stackindex, ms since starttime, eventdelay in ms
+    def add_sample(self, stackindex, time):
+        self.samples.append([stackindex, time]) # stackindex, ms since starttime
     
     def add_nativesymbol(self, libindex, funcname, addr):
         if libindex == -1:
@@ -639,7 +638,7 @@ class Thread:
         samples = {}
         samples["stack"] = [sample[0] for sample in self.samples]
         samples["time"] = [sample[1] for sample in self.samples]
-        samples["eventDelay"] = [sample[2] for sample in self.samples]
+        samples["eventDelay"] = [7 for _ in self.samples]
         samples["weightType"] = "samples"
         samples["weight"] = None
         samples["length"] = len(self.samples)
