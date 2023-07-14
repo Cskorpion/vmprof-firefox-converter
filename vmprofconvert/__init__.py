@@ -39,7 +39,7 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
     c = Converter()
     stats = vmprof.read_profile(vmprof_path)
     c.walk_samples(stats)
-    if pypylog_path:
+    if pypylog_path  :
         pypylog = parse_pypylog(pypylog_path)
         total_runtime_micros = (times[1] - times[0]) * 1000000
         pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
@@ -113,13 +113,13 @@ class Converter:
             category = CATEGORY_GC
         elif "jit" in logname:
             category = CATEGORY_JIT
-        frameindex = thread.add_frame(logname, -1, "", -1, -1)
+        frameindex = thread.add_frame(logname, -1, "", category, -1, -1)
         stackindex = thread.add_stack([frameindex], [category])
         thread.add_sample(stackindex, logtime_start)
         thread.add_sample(stackindex, logtime_end)
 
     def add_pypylog_interp_sample(self, thread, logtime_end, next_logtime_start):
-        frameindex = thread.add_frame("interp", -1, "", -1, -1)
+        frameindex = thread.add_frame("interp", -1, "", CATEGORY_INTERPRETER, -1, -1)
         stackindex = thread.add_stack([frameindex], [CATEGORY_INTERPRETER])
         thread.add_sample(stackindex, logtime_end)
         thread.add_sample(stackindex, next_logtime_start)
@@ -131,7 +131,7 @@ class Converter:
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
-        for i, sample in enumerate(stats.profiles):# 604 readmbox 601-604 [601:604]
+        for i, sample in enumerate(stats.profiles):# 604 readmbox 601-604 stats.profiles[601:604] [stats.profiles[601],stats.profiles[603]]
             frames = []
             categorys = []
             stack_info, _, tid, memory = sample
@@ -145,8 +145,11 @@ class Converter:
                 indexes = range(0, len(stack_info), 2)
             else:
                 indexes = range(len(stack_info))
+            #indexes = indexes[:22] # 22
+            #print()
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
+                #print(addr_info, stack_info[j].__class__)
                 #remove jit frames # quick fix 
                 if len(categorys) != 0:
                     if not isinstance(stack_info[j], AssemblerCode) and categorys[-1] == CATEGORY_JIT:
@@ -157,26 +160,27 @@ class Converter:
                 elif isinstance(stack_info[j], AssemblerCode):
                     self.check_asm_frame(categorys, stack_info[j], thread, frames[-1])
                 elif addr_info is None: # Class NativeCode isnt used
+                    #pass
                     categorys.append(CATEGORY_NATIVE)
                     frames.append(self.add_native_frame(thread, stack_info[j]))                   
                 elif isinstance(stack_info[j], int): 
-                    categorys.append(category_dict[addr_info[0]] )  
-                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines, j))
+                    categorys.append(category_dict[addr_info[0]])  
+                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
                    
             stackindex = thread.add_stack(frames, categorys)
             thread.add_sample(stackindex, i * sampletime)
             if stats.profile_memory == True:
                 self.counters.append([i * sampletime, memory * 1000])
 
-    def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, j):# native or python frame
+    def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, category, j):# native or python frame
         funcname = addr_info[1]
         funcline = addr_info[2]
         filename = addr_info[3]
         lib_index = self.add_lib(filename, funcname)
         if lineprof:
-            return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, lib_index, -1)# vmprof python line indexes are negative
+            return thread.add_frame(funcname, int(-1 * stack_info[j + 1]), filename, category, lib_index, -1)# vmprof python line indexes are negative
         else:
-            return thread.add_frame(funcname, funcline, filename, lib_index, -1)
+            return thread.add_frame(funcname, funcline, filename, category, lib_index, -1)
 
     def add_jit_frame(self, thread, categorys, addr_info, frames):
         funcname = addr_info[1]
@@ -191,14 +195,14 @@ class Converter:
             categorys.append(CATEGORY_JIT)
         if addr_info is not None and int(addr_info[2]) >= 0:
             lib_index = self.add_lib(filename, funcname)
-            return thread.add_frame(funcname, int(addr_info[2]), filename, lib_index, -1)# vmprof jit line indexes are positive
+            return thread.add_frame(funcname, int(addr_info[2]), filename, categorys[-1], lib_index, -1)# vmprof jit line indexes are positive
         else:
-            return thread.add_frame(funcname, -1, filename, -1, -1)
+            return thread.add_frame(funcname, -1, filename, categorys[-1], -1, -1)
 
     def add_native_frame(self, thread, stack_info):
         funcname = stack_info
         filename = ""
-        frameindex = thread.add_frame(funcname, -1, filename, -1, -1)
+        frameindex = thread.add_frame(funcname, -1, filename, CATEGORY_NATIVE, -1, -1)
         return frameindex
     
     def check_asm_frame(self, categorys, stack_info, thread, last_frame):
@@ -486,8 +490,8 @@ class Thread:
                 self.stacktable_positions[key] = result
                 return result
             
-    def add_func(self, func, file, line, libindex):
-        key = (func, file, line)
+    def add_func(self, func, file, line, category, libindex):
+        key = (func, file, line, category)
         if key in self.funtable_positions:
             return self.funtable_positions[key]
         else:
@@ -499,12 +503,12 @@ class Thread:
             self.funtable_positions[key] = result
             return result
             
-    def add_frame(self, funcname, line, file, libindex, addr):
-        key = (funcname, line)
+    def add_frame(self, funcname, line, file, category, libindex, addr):
+        key = (funcname, line, category)
         if key in self.frametable_positions:
             return self.frametable_positions[key]
         else:
-            functable_index = self.add_func(funcname, file, line, libindex)
+            functable_index = self.add_func(funcname, file, line, category, libindex)
             frametable_index = len(self.frametable)
             nativesymbol_index = self.add_nativesymbol(libindex, funcname, addr)
             self.frametable.append([functable_index, nativesymbol_index, line])

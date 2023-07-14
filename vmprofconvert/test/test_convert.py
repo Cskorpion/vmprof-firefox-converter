@@ -56,20 +56,20 @@ def test_stacktable():
 
 def test_frametable():
     t = Thread()
-    frameindex0 = t.add_frame("duck", -1, "dummyfile.py", -1, -1)# string, line, file, nativesymbol_index, addr
-    frameindex1 = t.add_frame("duck", -1, "dummyfile.py", -1, -1)
+    frameindex0 = t.add_frame("duck", -1, "dummyfile.py", CATEGORY_PYTHON, -1, -1)# string, line, file, nativesymbol_index, addr
+    frameindex1 = t.add_frame("duck", -1, "dummyfile.py", CATEGORY_PYTHON, -1, -1)
     assert frameindex0 == frameindex1 == 0
-    frameindex2 = t.add_frame("goose", -1, "dummyfile.py", -1, -1)
+    frameindex2 = t.add_frame("goose", -1, "dummyfile.py", CATEGORY_PYTHON, -1, -1)
     assert frameindex2 == frameindex1 + 1
     assert t.frametable == [[0, -1, -1],[1, -1, -1]]
     assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
 
 def test_functable():
     t = Thread()
-    funcindex0 = t.add_func("function_a", "dummyfile.py", 7, -1)# func, file, line, resource
-    funcindex1 = t.add_func("function_a", "dummyfile.py", 7, -1 )
+    funcindex0 = t.add_func("function_a", "dummyfile.py", 7, CATEGORY_PYTHON, -1)# func, file, line, resource
+    funcindex1 = t.add_func("function_a", "dummyfile.py", 7, CATEGORY_PYTHON, -1 )
     assert funcindex0 == funcindex1 == 0
-    funcindex2 = t.add_func("function_b", "dummyfile.py", 17, -1)
+    funcindex2 = t.add_func("function_b", "dummyfile.py", 17, CATEGORY_PYTHON, -1)
     assert funcindex2 == funcindex1 + 1
     assert t.functable == [[0, 1, 7, -1],[2, 1, 17, -1]]
     assert t.stringarray == ["function_a", "dummyfile.py" , "function_b"]
@@ -290,7 +290,7 @@ def test_jit_asm_inline():
     with open(path, "w") as output_file:
         output_file.write(json.dumps(json.loads(c.dumps_static()), indent=2))
     thread = c.threads[12345]
-    assert thread.stacktable == [[0, None, CATEGORY_MIXED], [1, 0, CATEGORY_JIT_INLINED]]
+    assert thread.stacktable == [[1, None, CATEGORY_MIXED], [2, 0, CATEGORY_JIT_INLINED]]
 
 def test_pypy_pystone():
     path = os.path.join(os.path.dirname(__file__), "profiles/pypy-pystone.prof")
@@ -311,7 +311,7 @@ def test_check_asm_frame():
     c.check_asm_frame(categorys, stack_info, thread, None)
     assert categorys == []# asm frames currently disabled 
     categorys.append(CATEGORY_JIT)
-    thread.add_frame("jit_function", 7, "dummyfile.py", 0, -1)
+    thread.add_frame("jit_function", 7, "dummyfile.py", CATEGORY_JIT, 0, -1)
     c.check_asm_frame(categorys, stack_info, thread, 0)
     assert categorys == [CATEGORY_JIT_INLINED]# jit frame + asm frame => jit_inlined frame
 
@@ -329,12 +329,12 @@ def test_add_jit_frame_to_mixed():
     thread = Thread()
     categorys =  [CATEGORY_PYTHON]
     addr_info_jit = ("", "function_a", 7, "dummyfile.py")
-    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3], -1, -1)
+    frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3], CATEGORY_PYTHON, -1, -1)
     frames = [frame_index0]
     frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit, frames)
     frames.append(frame_index1)
     assert categorys == [CATEGORY_MIXED]
-    assert frames == [0]
+    assert frames == [1]
 
 def test_add_jit_frame_not_mixed():
     c = Converter()
@@ -358,8 +358,8 @@ def test_add_vmprof_frame():
     addr_info_n = ("n", "function_b", 0, "dummyfile.py")
     stack_info = [0, -7, 1, 0]# addr, line, addr, line
     profile_lines = True
-    c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, 0)
-    c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, 2)
+    c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, CATEGORY_PYTHON, 0)
+    c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, CATEGORY_NATIVE, 2)
     assert thread.frametable == [[0, 0, 7], [1, 1, 0]]
     assert thread.functable == [[0, 1, 7, 0], [2, 1, 0, 1]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b"]
