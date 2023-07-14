@@ -132,7 +132,7 @@ class Converter:
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
-        for i, sample in enumerate(stats.profiles):# 604 readmbox 601-604
+        for i, sample in enumerate(stats.profiles):# 604 readmbox 601-604 [601:604]
             frames = []
             categorys = []
             stack_info, _, tid, memory = sample
@@ -657,7 +657,7 @@ class Thread:
             elif func[2] == -1:
                 linenumbers.append(None)
             else:
-                linenumbers.append(func[2])
+                linenumbers.append(int(func[2]))
 
         for func in self.functable:
             if self.stringarray[func[1]] == "-":
