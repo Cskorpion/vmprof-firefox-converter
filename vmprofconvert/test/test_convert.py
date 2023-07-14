@@ -157,8 +157,8 @@ def test_dumps_vmprof_no_lines():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.json")
     jsonobject = json.loads(jsonstr)
     dumped_frametable = jsonobject["threads"][0]["frameTable"]
-    assert dumped_frametable["line"][0] == "172"
-    assert dumped_frametable["line"][1] == "64"
+    assert dumped_frametable["line"][0] == 172
+    assert dumped_frametable["line"][1] == 64
     
 def test_dumps_vmprof():
     path = os.path.join(os.path.dirname(__file__), "profiles/example.prof")

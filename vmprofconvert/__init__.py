@@ -132,7 +132,7 @@ class Converter:
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
-        for i, sample in enumerate(stats.profiles):
+        for i, sample in enumerate(stats.profiles):# 604 readmbox 601-604
             frames = []
             categorys = []
             stack_info, _, tid, memory = sample
@@ -610,7 +610,7 @@ class Thread:
             if frame[2] == -1:
                 lines.append(None)
             else:
-                lines.append(frame[2])
+                lines.append(int(frame[2]))
         return lines
     
     def dump_functable(self):
