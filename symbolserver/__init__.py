@@ -12,6 +12,7 @@ cors = CORS(flaskapp)
 flaskapp.config["CORS_HEADERS"] = "Content-Type"   
 
 codeobj_dict = {}
+jitlog_forest = {}
 
 @flaskapp.get("/profile")
 def getprofile():
@@ -81,7 +82,9 @@ def get_advanced_code(jitpath, addr, funcname):
     code = {}
     if jitpath is None or not os.path.exists(jitpath):
         return []
-    forest = parse_jitlog(jitpath)
+    if jitpath not in jitlog_forest:
+        jitlog_forest[jitpath] = parse_jitlog(jitpath)
+    forest = jitlog_forest[jitpath]
     trace = forest.get_trace_by_addr(addr)
     if trace is None:
         return []
