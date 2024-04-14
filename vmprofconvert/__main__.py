@@ -113,6 +113,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="vmprof-firefox-converter", description="convert vmprof profiles or run vmprof directly")
     parser.add_argument("-convert", metavar = "convert_file", dest = "convert_file", nargs = 1, help = "convert vmprof profile or zip")
     parser.add_argument("-jitlog", metavar = "jitlog_file", dest = "jitlog_file", nargs = 1, help = "use jitlog data")
+    parser.add_argument("-pypylog", metavar = "pypylog_file", dest = "pypylog_file", nargs = 1, help = "use pypylog data")
     parser.add_argument("-run", metavar = "python_file args", dest = "python_file", nargs = "+", help = "run vmprof and convert profile")
     parser.add_argument("--nobrowser", action = "store_false", dest = "browser", default = True, help = "dont open firefox profiler")
     parser.add_argument("--zip", action = "store_true", dest = "zip", default = False, help = "save profile as sharable zip file")
@@ -151,6 +152,8 @@ if __name__ == "__main__":
                 zip_path = path.replace(".prof", ".zip")
             if args.jitlog_file:
                 jitlogpath = os.path.abspath(args.jitlog_file[0])
+            if args.pypylog_file:
+                pypylogpath = os.path.abspath(args.pypylog_file[0])
             
     abspath = os.path.abspath(path)
 

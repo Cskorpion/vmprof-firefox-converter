@@ -14,6 +14,8 @@ optional arguments:
 
 `-jitlog <profile.jit>` use jitlog data (only for converting vmprof data)
 
+`-pypylog <profile.pypylog>` use pypylog data (only for converting vmprof data)
+
 `--zip` export sharable zip (only for running vmprof)
 
 `--nobrowser` dont open firefox profiler
@@ -26,6 +28,14 @@ optional arguments:
 
 cpuburn code can be found
 [here](https://github.com/vmprof/vmprof-python/blob/master/vmprof/test/cpuburn.py)
+
+## Example PyPy run-and-convert w. jitlog & pypylog
+
+```bash
+$ PYPYLOG=profile.pypylog python -m vmprof --jitlog -o profile.prof <remaining vmprof args...>
+...
+$ python -m vmprofconvert -convert profile.prof -jitlog profile.prof.jit -pypylog profile.pypylog
+````
 
 #
 

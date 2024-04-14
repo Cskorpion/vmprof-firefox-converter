@@ -41,8 +41,9 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
     c.walk_samples(stats)
     if pypylog_path  :
         pypylog = parse_pypylog(pypylog_path)
-        total_runtime_micros = (times[1] - times[0]) * 1000000
-        pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
+        if times is not None:
+            total_runtime_micros = (times[1] - times[0]) * 1000000
+            pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
         pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
         pypylog = filter_top_level_logs(pypylog)
         #for tid in list(c.threads.keys()):
