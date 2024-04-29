@@ -111,6 +111,7 @@ class Converter:
                     ppl_stack.append(log)
                     if last_log[PPL_ACTION] == log[PPL_ACTION]: # Only top level actions wanted e.g. A[ B[ B]A] => Sample: A->B not A->B, A
                         self.add_pypylog_sample_from_stack(plthread, ppl_stack)
+                        plthread.create_single_pypylog_marker(ppl_stack[-2], ppl_stack[-1])
                     assert log[PPL_ACTION] == ppl_stack[-1][PPL_ACTION]
                     ppl_stack.pop()
                     ppl_stack.pop()
@@ -130,9 +131,10 @@ class Converter:
         start_time = stack_list[-2][PPL_TIME]
         end_time =  stack_list[-1][PPL_TIME]
         thread.add_sample(stackindex, start_time)
-        thread.add_sample(stackindex, end_time)  
-        if end_time - start_time > 3:
-            pass ### TODO: interpreter sample
+        thread.add_sample(stackindex, end_time) 
+        #if len(thread.samples) > 2:
+            #if start_time - thread.samples[-3][1] >= 3:
+                #self.add_pypylog_interp_sample(thread, thread.samples[-3][1] + 1, start_time - 1)
 
 
     def add_pypylog_sample(self, thread, logname, logtime_start, logtime_end):
@@ -145,11 +147,11 @@ class Converter:
         thread.add_sample(stackindex, logtime_start)
         thread.add_sample(stackindex, logtime_end)
 
-    def add_pypylog_interp_sample(self, thread, logtime_end, next_logtime_start):
+    def add_pypylog_interp_sample(self, thread, logtime_start, logtime_end):
         frameindex = thread.add_frame("interp", -1, "", CATEGORY_INTERPRETER, -1, -1)
         stackindex = thread.add_stack([frameindex], [CATEGORY_INTERPRETER])
+        thread.add_sample(stackindex, logtime_start)
         thread.add_sample(stackindex, logtime_end)
-        thread.add_sample(stackindex, next_logtime_start)
 
     
     def walk_samples(self, stats):
@@ -485,6 +487,13 @@ class Thread:
                 next_logtime_start = next_log[0]
                 if abs(endtime - next_logtime_start) > 2:
                     self.add_marker(endtime + 1, next_logtime_start - 1, interperter_string_id)
+
+    def create_single_pypylog_marker(self, start_log, stop_log):
+        starttime = start_log[PPL_TIME]
+        endtime = stop_log[PPL_TIME]
+        name = start_log[PPL_ACTION]
+        st_id = self.add_string(name)
+        self.add_marker(starttime, endtime, st_id)
             
     def add_marker(self, starttime, endtime, stringtable_index):
         self.markers.append([starttime, endtime, stringtable_index])

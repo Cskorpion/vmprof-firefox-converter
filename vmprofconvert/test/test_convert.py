@@ -472,7 +472,7 @@ def test_add_pypylog_interp_sample():
     assert samples[1] == [0, 117]
     assert stacktable[0] == [0, None, CATEGORY_INTERPRETER]
 
-def _test_walk_pypylog(): ### TODO: re-enable as soon as interpreter frames can be created again
+def test_walk_pypylog(): ### TODO: re-enable assert as soon as interpreter frames can be created again
     c = Converter()
     test_pypylog = [
         [7, "gc_example_action_a", True, 0],
@@ -481,8 +481,8 @@ def _test_walk_pypylog(): ### TODO: re-enable as soon as interpreter frames can 
     c.walk_pypylog(test_pypylog)
     t = c.threads[7]
     stringarray = t.stringarray
-    assert stringarray[0] == "interpreter"
-    assert stringarray[1] == "gc_example_action_a"
+    #assert stringarray[0] == "interpreter"
+    assert stringarray[0] == "gc_example_action_a"
 
 def test_walk_full_pypylog():
     c = Converter()
@@ -521,8 +521,9 @@ def test_walk_full_pypylog():
 
     assert funcname_0 == "gc_example_action_c" # action c is a top level action
     assert funcname_2 == "gc_example_action_a" # action a is a top level action, but c should be at index 0
-    assert len(samples) == 4# there shall be only four samples
-
+    #assert samples[4][1] == 4
+    #assert samples[5][1] == 5
+    assert len(samples) == 4# there should be only four samples 2x action c, 2x action a
     
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
@@ -535,7 +536,7 @@ def test_dumps_vmprof_without_pypylog():
     assert len(samples["stack"]) == 5551
     assert markers["data"] == []
 
-def _test_dumps_vmprof_with_pypylog():  ### TODO: re-enable as soon as interpreter frames can be created again
+def test_dumps_vmprof_with_pypylog(): ### TODO: re-enable assert as soon as interpreter frames can be created again
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     times = (0, 42.368387)
@@ -544,8 +545,8 @@ def _test_dumps_vmprof_with_pypylog():  ### TODO: re-enable as soon as interpret
     samples = profile["threads"][0]["samples"] 
     stringarray = profile["threads"][1]["stringArray"]
     assert len(samples["stack"]) == 5551
-    assert stringarray[0] == "interpreter"
-    assert stringarray[1] == "gc-set-nursery-size"
+    #assert stringarray[0] == "interpreter"
+    assert stringarray[0] == "gc-set-nursery-size"
 
 def test_write_file_dict():
     file_dict = {
