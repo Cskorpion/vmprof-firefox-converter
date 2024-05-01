@@ -8,7 +8,7 @@ from vmprofconvert import convert_vmprof, convert_stats_with_pypylog
 from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
-from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER
+from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER, CATEGORY_GC
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
 from vmprofconvert.__main__ import write_file_dict, save_zip, load_zip_dict, extract_files
 
@@ -472,17 +472,60 @@ def test_add_pypylog_interp_sample():
     assert samples[1] == [0, 117]
     assert stacktable[0] == [0, None, CATEGORY_INTERPRETER]
 
-def test_walk_pypylog(): ### TODO: re-enable assert as soon as interpreter frames can be created again
+def test_walk_pypylog():
     c = Converter()
     test_pypylog = [
         [7, "gc_example_action_a", True, 0],
         [17, "gc_example_action_a", False, 0]
     ]
     c.walk_pypylog(test_pypylog)
-    t = c.threads[7]
-    stringarray = t.stringarray
-    #assert stringarray[0] == "interpreter"
+    thread = c.threads[7]
+    stringarray = thread.stringarray
     assert stringarray[0] == "gc_example_action_a"
+
+
+def test_walk_pypylog_interpreter_samples():
+    c = Converter()
+    test_pypylog = [# this just represents the order in time time. Order in samples list differs: gc gc interp gc gc interp
+        [0, "gc_example_action_a", True, 0],
+        [5, "gc_example_action_a", False, 0],
+        # interpreter sample here
+        [10, "gc_example_action_a", True, 0],
+        [15, "gc_example_action_a", False, 0],
+        # no interpreter sample here ### maybe we dont need this case
+        [16, "gc_example_action_a", True, 0],
+        [17, "gc_example_action_a", False, 0],
+        # interpreter sample here
+        [25, "gc_example_action_a", True, 0],
+        [30, "gc_example_action_a", False, 0]
+    ]
+    c.walk_pypylog(test_pypylog)
+    thread = c.threads[7]
+
+    samples = thread.samples
+    stacktable = thread.stacktable
+
+    sample_0 = samples[0]# should be gc_example_action_a
+    sample_2 = samples[2]# should be gc_example_action_a
+    sample_4 = samples[4]# should be interpreter
+    sample_6 = samples[6]# should be gc_example_action_a
+    sample_8 = samples[8]# should be gc_example_action_a
+    sample_10 = samples[10]# should be interpreter
+
+    stack_0 = stacktable[sample_0[0]]
+    stack_2 = stacktable[sample_2[0]]
+    stack_4 = stacktable[sample_4[0]]
+    stack_6 = stacktable[sample_6[0]]
+    stack_8 = stacktable[sample_8[0]]
+    stack_10 = stacktable[sample_10[0]]
+
+    assert stack_0[2] == CATEGORY_GC
+    assert stack_2[2] == CATEGORY_GC
+    assert stack_4[2] == CATEGORY_INTERPRETER
+    assert stack_6[2] == CATEGORY_GC
+    assert stack_8[2] == CATEGORY_GC
+    assert stack_10[2] == CATEGORY_INTERPRETER
+    assert len(samples) == 12
 
 def test_walk_full_pypylog():
     c = Converter()
@@ -523,7 +566,7 @@ def test_walk_full_pypylog():
     assert funcname_2 == "gc_example_action_a" # action a is a top level action, but c should be at index 0
     #assert samples[4][1] == 4
     #assert samples[5][1] == 5
-    assert len(samples) == 4# there should be only four samples 2x action c, 2x action a
+    assert len(samples) == 6# there should be only four samples 2x action c, 2x action a and now 2x interp
     
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")

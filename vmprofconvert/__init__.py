@@ -50,9 +50,6 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
             total_runtime_micros = (times[1] - times[0]) * 1000000
             pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
         pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
-        #pypylog = filter_top_level_logs(pypylog)
-        #for tid in list(c.threads.keys()):
-           # c.create_pypylog_marker(pypylog, tid)
         c.walk_pypylog(pypylog)
     return c.dumps_vmprof(stats), c.create_path_dict()# json_profile, file path dict
 
@@ -100,9 +97,10 @@ class Converter:
             plthread.name = "PyPyLog"
             plthread.tid = tid
         if plthread and pypylog:
-            #plthread.create_pypylog_marker(pypylog) ### TODO: Fix markers + test
             ppl_stack = []
             last_log = None
+            last_close_time = -1
+            mdiff = pypylog[1][PPL_TIME] - pypylog[0][PPL_TIME]# minimal time intervall to squeeze an interpreter sample in between 
             for i in range(len(pypylog)):
                 log = pypylog[i]
                 if log[PPL_STARTING]:
@@ -112,7 +110,12 @@ class Converter:
                     if last_log[PPL_ACTION] == log[PPL_ACTION]: # Only top level actions wanted e.g. A[ B[ B]A] => Sample: A->B not A->B, A
                         self.add_pypylog_sample_from_stack(plthread, ppl_stack)
                         plthread.create_single_pypylog_marker(ppl_stack[-2], ppl_stack[-1])
-                    assert log[PPL_ACTION] == ppl_stack[-1][PPL_ACTION]
+                        if len(plthread.samples) >= 4:# dont add interp sample at start
+                            if ppl_stack[-2][PPL_TIME] - last_close_time >= mdiff:
+                                self.add_pypylog_interp_sample(plthread, last_close_time + 1, ppl_stack[-2][PPL_TIME] - 1)
+                                # TODO: Add interpreter marker
+                    assert log[PPL_ACTION] == ppl_stack[-1][PPL_ACTION] ### TODO: Remove later
+                    last_close_time = log[PPL_TIME]
                     ppl_stack.pop()
                     ppl_stack.pop()
                 last_log = log
@@ -132,10 +135,6 @@ class Converter:
         end_time =  stack_list[-1][PPL_TIME]
         thread.add_sample(stackindex, start_time)
         thread.add_sample(stackindex, end_time) 
-        #if len(thread.samples) > 2:
-            #if start_time - thread.samples[-3][1] >= 3:
-                #self.add_pypylog_interp_sample(thread, thread.samples[-3][1] + 1, start_time - 1)
-
 
     def add_pypylog_sample(self, thread, logname, logtime_start, logtime_end):
         if "gc" in logname:
