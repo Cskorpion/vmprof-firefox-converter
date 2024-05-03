@@ -89,7 +89,7 @@ class Converter:
         lowest_tid = min(list(self.threads.keys())) - 1
         return lowest_tid
     
-    def walk_pypylog(self, pypylog):# Problem: tracing[ backend[ backend] backend[ backend] backend[ backend] ....] 
+    def walk_pypylog(self, pypylog):
         tid = self.get_unused_tid()
         plthread = None
         if tid not in self.threads:
@@ -100,7 +100,7 @@ class Converter:
             ppl_stack = []
             last_log = None
             last_close_time = -1
-            mdiff = pypylog[1][PPL_TIME] - pypylog[0][PPL_TIME]# minimal time intervall to squeeze an interpreter sample in between 
+            mdiff = pypylog[1][PPL_TIME] - pypylog[0][PPL_TIME]# minimal time interval to squeeze an interpreter sample in between 
             for i in range(len(pypylog)):
                 log = pypylog[i]
                 if log[PPL_STARTING]:
@@ -108,20 +108,19 @@ class Converter:
                 else:
                     ppl_stack.append(log)
                     if last_log[PPL_ACTION] == log[PPL_ACTION]: # Only top level actions wanted e.g. A[ B[ B]A] => Sample: A->B not A->B, A
+                        if len(plthread.samples) >= 2 and ppl_stack[-2][PPL_TIME] - last_close_time >= mdiff:# dont add interp sample at start
+                            self.add_pypylog_interp_sample(plthread, last_close_time + 1, ppl_stack[-2][PPL_TIME] - 1)
+                            plthread.create_single_pypylog_interpreter_marker(last_close_time + 1, ppl_stack[-2][PPL_TIME] - 1)
                         self.add_pypylog_sample_from_stack(plthread, ppl_stack)
                         plthread.create_single_pypylog_marker(ppl_stack[-2], ppl_stack[-1])
-                        if len(plthread.samples) >= 4:# dont add interp sample at start
-                            if ppl_stack[-2][PPL_TIME] - last_close_time >= mdiff:
-                                self.add_pypylog_interp_sample(plthread, last_close_time + 1, ppl_stack[-2][PPL_TIME] - 1)
-                                # TODO: Add interpreter marker
-                    assert log[PPL_ACTION] == ppl_stack[-1][PPL_ACTION] ### TODO: Remove later
+                    #assert log[PPL_ACTION] == ppl_stack[-1][PPL_ACTION] ### TODO: Remove later
                     last_close_time = log[PPL_TIME]
                     ppl_stack.pop()
                     ppl_stack.pop()
                 last_log = log
             
     def add_pypylog_sample_from_stack(self, thread, stack_list):
-        assert stack_list[-2][PPL_ACTION] == stack_list[-1][PPL_ACTION] ### TODO: Remove later
+        #assert stack_list[-2][PPL_ACTION] == stack_list[-1][PPL_ACTION] ### TODO: Remove later
         frames = []
         categories = []
         for log in stack_list[:-1]:# last frame is double (open + closed)
@@ -492,6 +491,10 @@ class Thread:
         endtime = stop_log[PPL_TIME]
         name = start_log[PPL_ACTION]
         st_id = self.add_string(name)
+        self.add_marker(starttime, endtime, st_id)
+
+    def create_single_pypylog_interpreter_marker(self, starttime, endtime):
+        st_id = self.add_string("interpreter")## move out
         self.add_marker(starttime, endtime, st_id)
             
     def add_marker(self, starttime, endtime, stringtable_index):
