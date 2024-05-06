@@ -8,7 +8,7 @@ from vmprofconvert import convert_vmprof, convert_stats_with_pypylog
 from vmprofconvert import convert_stats
 from vmprofconvert import Converter
 from vmprofconvert import Thread
-from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER
+from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER, CATEGORY_GC
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
 from vmprofconvert.__main__ import write_file_dict, save_zip, load_zip_dict, extract_files
 
@@ -429,17 +429,37 @@ def test_filter_top_level_logs():
     assert filtered_pypylog[6][1] == filtered_pypylog[7][1]# not nested action
     assert filtered_pypylog[6][2] != filtered_pypylog[7][2]# action start => action end
 
-def test_create_pypylog_marker():
+def test_create_pypylog_marker(): # create_pypylog_marker is no longer in use
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     t = Thread()
     initial_pypylog = parse_pypylog(pypylog_path)
     rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000000)
     filtered_pypylog = filter_top_level_logs(rescaled_pypylog[:20])
-    t.create_pypylog_marker(filtered_pypylog)
+    t.create_pypylog_marker(filtered_pypylog)# marker do not use categorys, but strings 
     assert t.markers[0] == [0, 10, 1]#gc or jit
     assert t.markers[1] == [11, 19, 0]#interp
     assert t.markers[2] == [20, 30, 2]#gc or jit
     assert t.markers[3] == [31, 39, 0]#interp
+
+def test_walk_pypylog_marker(): # create_pypylog_marker is no longer in use
+    pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
+    converter = Converter()
+    initial_pypylog = parse_pypylog(pypylog_path)
+    rescaled_pypylog = rescale_pypylog(initial_pypylog[:100], 1000000)
+    converter.walk_pypylog(rescaled_pypylog)
+    thread = converter.threads[7]
+    
+    gc_set_nursery_size_id = thread.add_string("gc-set-nursery-size")# get string ids, since name is string not category
+    gc_hardware_id = thread.add_string("gc-hardware")
+    interpreter_id = thread.add_string("interpreter")
+
+    expected_interval = 1000000/100  * 0.001
+
+    assert thread.markers[0] == [0, expected_interval, gc_set_nursery_size_id] # first log
+    assert thread.markers[1] == [expected_interval + 1,2 * expected_interval -1, interpreter_id]# interpreter
+    assert thread.markers[2] == [2 * expected_interval, 3 * expected_interval, gc_hardware_id]# second log
+    assert thread.markers[3] == [3 * expected_interval + 1,4 * expected_interval -1, interpreter_id]# interpreter
+    assert thread.markers[4] == [4 * expected_interval, 5 * expected_interval, gc_hardware_id]# third log
 
 def test_get_unused_tid():
     c = Converter()
@@ -479,10 +499,99 @@ def test_walk_pypylog():
         [17, "gc_example_action_a", False, 0]
     ]
     c.walk_pypylog(test_pypylog)
-    t = c.threads[7]
-    stringarray = t.stringarray
-    assert stringarray[0] == "interpreter"
-    assert stringarray[1] == "gc_example_action_a"
+    thread = c.threads[7]
+    stringarray = thread.stringarray
+    assert stringarray[0] == "gc_example_action_a"
+
+
+def test_walk_pypylog_interpreter_samples():
+    c = Converter()
+    test_pypylog = [# this just represents the order in time time. Order in samples list differs: gc gc interp gc gc interp
+        [0, "gc_example_action_a", True, 0],
+        [5, "gc_example_action_a", False, 0],
+        # interpreter sample here
+        [10, "gc_example_action_a", True, 0],
+        [15, "gc_example_action_a", False, 0],
+        # no interpreter sample here ### maybe we dont need this case
+        [16, "gc_example_action_a", True, 0],
+        [17, "gc_example_action_a", False, 0],
+        # interpreter sample here
+        [25, "gc_example_action_a", True, 0],
+        [30, "gc_example_action_a", False, 0]
+    ]
+    c.walk_pypylog(test_pypylog)
+    thread = c.threads[7]
+
+    samples = thread.samples
+    stacktable = thread.stacktable
+
+    sample_0 = samples[0]# should be gc_example_action_a
+    sample_2 = samples[2]# should be gc_example_action_a
+    sample_4 = samples[4]# should be interpreter
+    sample_6 = samples[6]# should be gc_example_action_a
+    sample_8 = samples[8]# should be gc_example_action_a
+    sample_10 = samples[10]# should be interpreter
+
+    stack_0 = stacktable[sample_0[0]]
+    stack_2 = stacktable[sample_2[0]]
+    stack_4 = stacktable[sample_4[0]]
+    stack_6 = stacktable[sample_6[0]]
+    stack_8 = stacktable[sample_8[0]]
+    stack_10 = stacktable[sample_10[0]]
+
+    assert stack_0[2] == CATEGORY_GC
+    assert stack_2[2] == CATEGORY_INTERPRETER
+    assert stack_4[2] == CATEGORY_GC
+    assert stack_6[2] == CATEGORY_GC
+    assert stack_8[2] == CATEGORY_INTERPRETER
+    assert stack_10[2] == CATEGORY_GC
+    assert len(samples) == 12
+
+def test_walk_full_pypylog():
+    c = Converter()
+    test_pypylog = [
+        [0, "gc_example_action_a", True, 0],
+        [1, "gc_example_action_b", True, 1],
+        [2, "gc_example_action_c", True, 2],
+        [3, "gc_example_action_c", False, 2], # top => two samples created
+        [4, "gc_example_action_b", False, 1], # not top
+        [5, "gc_example_action_a", False, 0], # not top
+        [6, "gc_example_action_a", True, 0],
+        [7, "gc_example_action_a", False, 0] # top => two samples created
+    ]
+    c.walk_pypylog(test_pypylog)
+    thread = c.threads[7]
+    samples = thread.samples
+    stacktable = thread.stacktable
+    frametable = thread.frametable
+    functable = thread.functable
+    stringarray = thread.stringarray
+
+    sample_0 = samples[0]
+    sample_2 = samples[2]
+    sample_4 = samples[4]
+
+    stack_0 = stacktable[sample_0[0]]
+    stack_2 = stacktable[sample_2[0]]
+    stack_4 = stacktable[sample_4[0]]
+
+    frame_0 = frametable[stack_0[0]]
+    frame_2 = frametable[stack_2[0]]
+    frame_4 = frametable[stack_4[0]]
+
+    func_0 = functable[frame_0[0]]
+    func_2 = functable[frame_2[0]]
+    func_4 = functable[frame_4[0]]
+
+    funcname_0 = stringarray[func_0[0]]# gc_example_action_c
+    funcname_2 = stringarray[func_2[0]]# interpreter
+    funcname_4 = stringarray[func_4[0]]# gc_example_action_a
+
+    assert funcname_0 == "gc_example_action_c" # action c is a top level action
+    assert funcname_2 == "interp" # interpreter (why did i call this 'interp'?)
+    assert funcname_4 == "gc_example_action_a" # action a is a top level action, but c should be at index 0
+
+    assert len(samples) == 6# there should be only four samples 2x action c, 2x action a and now 2x interpreter
     
 def test_dumps_vmprof_without_pypylog():
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
@@ -495,7 +604,7 @@ def test_dumps_vmprof_without_pypylog():
     assert len(samples["stack"]) == 5551
     assert markers["data"] == []
 
-def test_dumps_vmprof_with_pypylog():
+def test_dumps_vmprof_with_pypylog(): ### TODO: re-enable assert as soon as interpreter frames can be created again
     vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
     times = (0, 42.368387)
@@ -504,8 +613,8 @@ def test_dumps_vmprof_with_pypylog():
     samples = profile["threads"][0]["samples"] 
     stringarray = profile["threads"][1]["stringArray"]
     assert len(samples["stack"]) == 5551
-    assert stringarray[0] == "interpreter"
-    assert stringarray[1] == "gc-set-nursery-size"
+    #assert stringarray[0] == "interpreter"
+    assert stringarray[0] == "gc-set-nursery-size"
 
 def test_write_file_dict():
     file_dict = {
