@@ -155,6 +155,10 @@ class Converter:
     def walk_samples(self, stats):
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
+
+        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
+            sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
+
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
@@ -172,11 +176,9 @@ class Converter:
                 indexes = range(0, len(stack_info), 2)
             else:
                 indexes = range(len(stack_info))
-            #indexes = indexes[:22] # 22
-            #print()
+
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
-                #print(addr_info, stack_info[j].__class__)
                 #remove jit frames # quick fix 
                 if len(categorys) != 0:
                     if not isinstance(stack_info[j], AssemblerCode) and categorys[-1] == CATEGORY_JIT:
@@ -195,9 +197,12 @@ class Converter:
                     frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
                    
             stackindex = thread.add_stack(frames, categorys)
-            thread.add_sample(stackindex, i * sampletime)
+            timestamp = i * sampletime
+            if "start_time_offset" in stats.meta: 
+                timestamp = 1000 * stats.profiles[i][1] - sampletime# timestamp field in new version  
+            thread.add_sample(stackindex, timestamp)
             if stats.profile_memory == True:
-                self.counters.append([i * sampletime, memory * 1000])
+                self.counters.append([timestamp, memory * 1000])
 
     def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, category, j):# native or python frame
         funcname = addr_info[1]

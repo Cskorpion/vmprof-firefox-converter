@@ -19,6 +19,7 @@ class Dummystats():
         self.profile_memory = False
         self.end_time = Dummytime(10)
         self.start_time = Dummytime(0)
+        self.meta = {}
     
     def get_addr_info(self, addr):
         return ("py", self.addr_dict[addr], 0, "dummyfile.py")
@@ -771,3 +772,16 @@ def test_extract_files():
     assert filecontent["duck.py"] == "print(\"quack\")"
     assert filecontent["/home/users/me/goose.prof"] == "0x7"
     assert filecontent["C:\\users\\myself\\frog.jitlog"] == "0x17"
+
+def test_timestamps():
+    path = os.path.join(os.path.dirname(__file__), "profiles/cpuburn.cpython.tsprof")
+    converter = convert_vmprof(path)
+
+    thread = list(converter.threads.values())[0]
+
+    samples = thread.samples
+
+    assert 10.832965 - 0.00001 < samples[0][1] < 10.832965 + 0.00001 # different rounding
+    # 451.370060965 - 451.359228 # sample timestamp - start timestamp
+    assert 30430.785875 - 0.00001 < samples[-1][1] < 30430.785875 + 0.00001
+    # 481.790013875 - 451.359228 
