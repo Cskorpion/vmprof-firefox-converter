@@ -1,6 +1,7 @@
 import os
 import json
 import vmprof
+import pytest
 from zipfile import ZipFile
 from vmprof.reader import JittedCode, AssemblerCode
 from vmprofconvert import convert
@@ -773,6 +774,11 @@ def test_extract_files():
     assert filecontent["/home/users/me/goose.prof"] == "0x7"
     assert filecontent["C:\\users\\myself\\frog.jitlog"] == "0x17"
 
+
+# This test does only make sense when running vmprof with sample-timestamp support like 
+# https://github.com/Cskorpion/vmprof-python/tree/sample_timestamps
+# Test disabled until the vmprof main branch supports sample-timestamps
+@pytest.mark.skip()
 def test_timestamps():
     path = os.path.join(os.path.dirname(__file__), "profiles/cpuburn.cpython.tsprof")
     converter = convert_vmprof(path)
