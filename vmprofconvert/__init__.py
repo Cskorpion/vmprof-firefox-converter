@@ -44,7 +44,22 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
     c = Converter()
     stats = vmprof.read_profile(vmprof_path)
     c.walk_samples(stats)
-    if pypylog_path  :
+    if pypylog_path:
+        pypylog = parse_pypylog(pypylog_path)
+        if times is not None:
+            total_runtime_micros = (times[1] - times[0]) * 1000000
+            pypylog = cut_pypylog(pypylog, total_runtime_micros, stats.get_runtime_in_microseconds())
+        pypylog = rescale_pypylog(pypylog, stats.get_runtime_in_microseconds())
+        c.walk_pypylog(pypylog)
+    return c.dumps_vmprof(stats), c.create_path_dict()# json_profile, file path dict
+
+def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
+    #times for cutting of logs after sampling ended
+    c = Converter()
+    stats = vmprof.read_profile(vmprof_path)
+    #c.walk_samples(stats)
+    c.walk_gc_samples(stats)
+    if False and pypylog_path and times:
         pypylog = parse_pypylog(pypylog_path)
         if times is not None:
             total_runtime_micros = (times[1] - times[0]) * 1000000
@@ -204,6 +219,62 @@ class Converter:
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
 
+    def walk_gc_samples(self, stats):
+        # New function for gc_samples.
+        # May not usefull now but i dont want to make the walk_samples func more complicated
+        # as soon as gc samples carry more information 
+        if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
+        sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
+        sampletime /= len(stats.gc_profiles)
+
+        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
+            sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
+
+        category_dict = {}
+        category_dict["py"] = CATEGORY_PYTHON
+        category_dict["n"] = CATEGORY_NATIVE
+        for i, sample in enumerate(stats.gc_profiles):
+            frames = []
+            categorys = []
+            stack_info, _, tid, memory = sample
+            if tid in self.threads:
+                thread = self.threads[tid]
+            else:
+                thread = self.threads[tid] = Thread() 
+                thread.tid = tid
+                thread.name = "(GC-Sampled) Thread " + str(len(self.threads) - 1)# Threads seem to need different names
+            if stats.profile_lines:
+                indexes = range(0, len(stack_info), 2)
+            else:
+                indexes = range(len(stack_info))
+
+            for j in indexes:
+                addr_info = stats.get_addr_info(stack_info[j])
+                #remove jit frames # quick fix 
+                if len(categorys) != 0:
+                    if not isinstance(stack_info[j], AssemblerCode) and categorys[-1] == CATEGORY_JIT:
+                        frames.pop()
+                        categorys.pop()
+                if isinstance(stack_info[j], JittedCode):
+                    frames.append(self.add_jit_frame(thread, categorys, addr_info, frames))
+                elif isinstance(stack_info[j], AssemblerCode):
+                    self.check_asm_frame(categorys, stack_info[j], thread, frames[-1])
+                elif addr_info is None: # Class NativeCode isnt used
+                    #pass
+                    categorys.append(CATEGORY_NATIVE)
+                    frames.append(self.add_native_frame(thread, stack_info[j]))                   
+                elif isinstance(stack_info[j], int): 
+                    categorys.append(category_dict[addr_info[0]])  
+                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
+                   
+            stackindex = thread.add_stack(frames, categorys)
+            timestamp = i * sampletime
+            if "start_time_offset" in stats.meta: 
+                timestamp = 1000 * stats.gc_profiles[i][1] - sampletime# timestamp field in new version  
+            thread.add_sample(stackindex, timestamp)
+            if stats.profile_memory == True:
+                self.counters.append([timestamp, memory * 1000])
+
     def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, category, j):# native or python frame
         funcname = addr_info[1]
         funcline = addr_info[2]
@@ -319,7 +390,13 @@ class Converter:
 
     def dump_vmprof_meta(self, stats):
         vmprof_meta = {}
-        ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))
+        # the intervall should be sample_n_bytes and would not make any sense for combined time and allocation sampling 
+        # TODO: Think of somethin usefull to püut here for allocation sampling
+        # Maybe vmprof should store sampling_rate/ sample_n_bytes?
+        if hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0:
+            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles))
+        else:
+            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))
         
         vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
         vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000

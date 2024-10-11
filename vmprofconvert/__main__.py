@@ -8,7 +8,7 @@ import argparse
 import time
 import atexit
 from zipfile import ZipFile
-from vmprofconvert import convert_stats_with_pypylog
+from vmprofconvert import convert_gc_stats_with_pypylog
 from symbolserver import start_server 
 
 def run_vmprof(path, argv, native, lines):
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     url += "/?symbolServer=http%3A%2F%2F127.0.0.1%3A5000%2F"
 
     with open(abspath + ".json", "w") as output_file:
-        json_profile, new_path_dict = convert_stats_with_pypylog(abspath, pypylogpath, times)
+        json_profile, new_path_dict = convert_gc_stats_with_pypylog(abspath, pypylogpath, times)
         output_file.write(json.dumps(json.loads(json_profile), indent=2))
         if args.zip:
             new_path_dict["prof"] = abspath
