@@ -224,11 +224,12 @@ class Converter:
         # May not usefull now but i dont want to make the walk_samples func more complicated
         # as soon as gc samples carry more information 
         if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
-        sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
-        sampletime /= len(stats.gc_profiles)
 
         if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
             sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
+        else:
+            sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
+            sampletime /= len(stats.gc_profiles)
 
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
@@ -268,10 +269,14 @@ class Converter:
                     frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
                    
             stackindex = thread.add_stack(frames, categorys)
-            timestamp = i * sampletime
             if "start_time_offset" in stats.meta: 
                 timestamp = 1000 * stats.gc_profiles[i][1] - sampletime# timestamp field in new version  
+            else:
+                timestamp = i * sampletime
+
             thread.add_sample(stackindex, timestamp)
+            thread.add_allocation(stackindex, timestamp, 32768)# TODO: in vmprof, put sample_n_bytes into stats, then replace 32768 by sample_n_bytes
+            
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
 
@@ -551,6 +556,7 @@ class Thread:
         self.resourcetable = []# list of [libindex, stringindex]
         self.resourcetable_positions = {}# key is (libindex, stringindex)
         self.markers = []# list of [startime, endtime, stringindex]
+        self.allocations = [] # list of [stackindex, time in ms, memory allocated]
 
     def create_pypylog_marker(self, pypylog):
         interperter_string_id = self.add_string("interpreter")
@@ -638,6 +644,9 @@ class Thread:
     def add_sample(self, stackindex, time):
         self.samples.append([stackindex, time]) # stackindex, ms since starttime
     
+    def add_allocation(self, stackindex, time, n_bytes_allocated):
+        self.allocations.append([stackindex, time, n_bytes_allocated]) # stackindex, ms since starttime, bytes allocated
+    
     def add_nativesymbol(self, libindex, funcname, addr):
         if libindex == -1:
             return -1
@@ -683,7 +692,22 @@ class Thread:
         thread["stackTable"] = self.dump_stacktable()
         thread["samples"] = self.dump_samples()
         thread["stringArray"] = self.dump_stringarray()
+        if self.allocations != []:
+            thread["jsAllocations"] = self.dump_allocations()
         return thread
+    
+    def dump_allocations(self):
+        allocations = {}
+        allocations["time"] = [a[1] for a in self.allocations]
+        allocations["className"] = ["Call" for _ in range(len(self.allocations))]
+        allocations["typeName"] = ["PyObj" for _ in range(len(self.allocations))] # TODO: replace with real value, as soon as we know type of allocated obj
+        allocations["coarseType"] = ["Object" for _ in range(len(self.allocations))]
+        allocations["weight"] = [a[2] for a in self.allocations]
+        allocations["weightType"] = "bytes"
+        allocations["inNursery"] = [True for _ in self.allocations] # TODO: replace with real value, as soon as we know if it was nursery alloc or ex_malloc
+        allocations["stack"] = [a[0] for a in self.allocations]
+        allocations["length"] = len(self.allocations)
+        return allocations
     
     def dump_markers(self):
         markers = {}
