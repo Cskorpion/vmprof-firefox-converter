@@ -57,7 +57,7 @@ def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
     #times for cutting of logs after sampling ended
     c = Converter()
     stats = vmprof.read_profile(vmprof_path)
-    #c.walk_samples(stats)
+    c.walk_samples(stats)
     c.walk_gc_samples(stats)
     if False and pypylog_path and times:
         pypylog = parse_pypylog(pypylog_path)
@@ -71,6 +71,7 @@ def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
 class Converter:
     def __init__(self):
         self.threads = {}
+        self.gc_sampled_threads = {}
         self.counters = []
         self.libs = []# list of [name, debugname]
         self.libs_positions = {}# key is string
@@ -186,7 +187,7 @@ class Converter:
             else:
                 thread = self.threads[tid] = Thread() 
                 thread.tid = tid
-                thread.name = "Thread " + str(len(self.threads) - 1)# Threads seem to need different names
+                thread.name = "(Time-Sampled) Thread " + str(len(self.threads) - 1)# Threads seem to need different names
             if stats.profile_lines:
                 indexes = range(0, len(stack_info), 2)
             else:
@@ -231,6 +232,11 @@ class Converter:
             sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
             sampletime /= len(stats.gc_profiles)
 
+        if "sample_allocated_bytes" in stats.meta:
+            sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
+        else:
+            sample_allocated_bytes = 0
+
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
@@ -238,12 +244,12 @@ class Converter:
             frames = []
             categorys = []
             stack_info, _, tid, memory = sample
-            if tid in self.threads:
-                thread = self.threads[tid]
+            if tid in self.gc_sampled_threads:
+                thread = self.gc_sampled_threads[tid]
             else:
-                thread = self.threads[tid] = Thread() 
+                thread = self.gc_sampled_threads[tid] = Thread() 
                 thread.tid = tid
-                thread.name = "(GC-Sampled) Thread " + str(len(self.threads) - 1)# Threads seem to need different names
+                thread.name = "(GC-Sampled) Thread " + str(len(self.gc_sampled_threads) - 1)# Threads seem to need different names
             if stats.profile_lines:
                 indexes = range(0, len(stack_info), 2)
             else:
@@ -275,7 +281,7 @@ class Converter:
                 timestamp = i * sampletime
 
             thread.add_sample(stackindex, timestamp)
-            thread.add_allocation(stackindex, timestamp, 32768)# TODO: in vmprof, put sample_n_bytes into stats, then replace 32768 by sample_n_bytes
+            thread.add_allocation(stackindex, timestamp, sample_allocated_bytes)
             
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
@@ -373,7 +379,12 @@ class Converter:
         return liblist
     
     def dump_threads(self):
-        return [thread.dump_thread()for thread in list(self.threads.values())] 
+        threads = []
+        for thread in list(self.threads.values()):
+            threads.append(thread.dump_thread())
+        for thread in list(self.gc_sampled_threads.values()):
+            threads.append(thread.dump_thread())
+        return threads
     
     def dump_static_meta(self):
         static_meta = {}
@@ -395,20 +406,19 @@ class Converter:
 
     def dump_vmprof_meta(self, stats):
         vmprof_meta = {}
-        # the intervall should be sample_n_bytes and would not make any sense for combined time and allocation sampling 
-        # TODO: Think of somethin usefull to püut here for allocation sampling
-        # Maybe vmprof should store sampling_rate/ sample_n_bytes?
-        if hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0:
-            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles))
+        if "period" in stats.meta:
+            ms_for_sample = 1000 * float(stats.getmeta("period", "0.0"))
+        elif hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0:
+            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles)) * 0.000001
         else:
-            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))
+            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles)) * 0.000001
         
-        vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
+        vmprof_meta["interval"] = ms_for_sample # mili-seconds
         vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
         vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
         vmprof_meta["abi"] = stats.interp # interpreter
 
-        os   = stats.getmeta("os","default os")
+        os = stats.getmeta("os","default os")
         bits = stats.getmeta("bits","64")
         osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac": "Macintosh"}# vmprof key for mac may be wrong
         
