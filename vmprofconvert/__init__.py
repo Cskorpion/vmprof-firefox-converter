@@ -169,6 +169,8 @@ class Converter:
 
     
     def walk_samples(self, stats):
+        if not stats.profiles:
+            return
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
 
@@ -209,8 +211,8 @@ class Converter:
                     categorys.append(CATEGORY_NATIVE)
                     frames.append(self.add_native_frame(thread, stack_info[j]))                   
                 elif isinstance(stack_info[j], int): 
-                    categorys.append(category_dict[addr_info[0]])  
-                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
+                    categorys.append(category_dict[addr_info[0]]) 
+                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines, categorys[-1], j))
                    
             stackindex = thread.add_stack(frames, categorys)
             timestamp = i * sampletime
@@ -408,7 +410,7 @@ class Converter:
         vmprof_meta = {}
         if "period" in stats.meta:
             ms_for_sample = 1000 * float(stats.getmeta("period", "0.0"))
-        elif hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0:
+        elif hasattr(stats, "gc_profiles") and len(stats.gc_profiles) != 0:
             ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles)) * 0.000001
         else:
             ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles)) * 0.000001
