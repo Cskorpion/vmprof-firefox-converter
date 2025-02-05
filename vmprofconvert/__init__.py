@@ -113,14 +113,12 @@ class Converter:
                             plthread.create_single_pypylog_interpreter_marker(last_close_time + 1, ppl_stack[-2][PPL_TIME] - 1)
                         self.add_pypylog_sample_from_stack(plthread, ppl_stack)
                         plthread.create_single_pypylog_marker(ppl_stack[-2], ppl_stack[-1])
-                    #assert log[PPL_ACTION] == ppl_stack[-1][PPL_ACTION] ### TODO: Remove later
                     last_close_time = log[PPL_TIME]
                     ppl_stack.pop()
                     ppl_stack.pop()
                 last_log = log
             
     def add_pypylog_sample_from_stack(self, thread, stack_list):
-        #assert stack_list[-2][PPL_ACTION] == stack_list[-1][PPL_ACTION] ### TODO: Remove later
         frames = []
         categories = []
         for log in stack_list[:-1]:# last frame is double (open + closed)
@@ -156,15 +154,15 @@ class Converter:
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
 
-        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
+        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check when vmprof supports it
             sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
 
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
         category_dict["n"] = CATEGORY_NATIVE
-        for i, sample in enumerate(stats.profiles):# 604 readmbox 601-604 stats.profiles[601:604] [stats.profiles[601],stats.profiles[603]]
+        for i, sample in enumerate(stats.profiles):
             frames = []
-            categorys = []
+            categories = []
             stack_info, _, tid, memory = sample
             if tid in self.threads:
                 thread = self.threads[tid]
@@ -180,23 +178,23 @@ class Converter:
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
                 #remove jit frames # quick fix 
-                if len(categorys) != 0:
-                    if not isinstance(stack_info[j], AssemblerCode) and categorys[-1] == CATEGORY_JIT:
+                if len(categories) != 0:
+                    if not isinstance(stack_info[j], AssemblerCode) and categories[-1] == CATEGORY_JIT:
                         frames.pop()
-                        categorys.pop()
+                        categories.pop()
                 if isinstance(stack_info[j], JittedCode):
-                    frames.append(self.add_jit_frame(thread, categorys, addr_info, frames))
+                    frames.append(self.add_jit_frame(thread, categories, addr_info, frames))
                 elif isinstance(stack_info[j], AssemblerCode):
-                    self.check_asm_frame(categorys, stack_info[j], thread, frames[-1])
+                    self.check_asm_frame(categories, stack_info[j], thread, frames[-1])
                 elif addr_info is None: # Class NativeCode isnt used
                     #pass
-                    categorys.append(CATEGORY_NATIVE)
+                    categories.append(CATEGORY_NATIVE)
                     frames.append(self.add_native_frame(thread, stack_info[j]))                   
                 elif isinstance(stack_info[j], int): 
-                    categorys.append(category_dict[addr_info[0]])  
-                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
+                    categories.append(category_dict[addr_info[0]])  
+                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categories[-1], j))
                    
-            stackindex = thread.add_stack(frames, categorys)
+            stackindex = thread.add_stack(frames, categories)
             timestamp = i * sampletime
             if "start_time_offset" in stats.meta: 
                 timestamp = 1000 * stats.profiles[i][1] - sampletime# timestamp field in new version  
@@ -214,22 +212,22 @@ class Converter:
         else:
             return thread.add_frame(funcname, funcline, filename, category, lib_index, -1)
 
-    def add_jit_frame(self, thread, categorys, addr_info, frames):
+    def add_jit_frame(self, thread, categories, addr_info, frames):
         funcname = addr_info[1]
         filename = addr_info[3]
         last_funcname, last_filename = self.get_last_func_file(thread, frames) 
         
-        if len(categorys) > 0 and categorys[-1] == 0 and last_filename == filename and last_funcname == funcname:# if last frame is py and current is jit and both have the same function => replace with mixed frame
+        if len(categories) > 0 and categories[-1] == 0 and last_filename == filename and last_funcname == funcname:# if last frame is py and current is jit and both have the same function => replace with mixed frame
             frames.pop()
-            categorys.pop()
-            categorys.append(CATEGORY_MIXED)
+            categories.pop()
+            categories.append(CATEGORY_MIXED)
         else:
-            categorys.append(CATEGORY_JIT)
+            categories.append(CATEGORY_JIT)
         if addr_info is not None and int(addr_info[2]) >= 0:
             lib_index = self.add_lib(filename, funcname)
-            return thread.add_frame(funcname, int(addr_info[2]), filename, categorys[-1], lib_index, -1)# vmprof jit line indexes are positive
+            return thread.add_frame(funcname, int(addr_info[2]), filename, categories[-1], lib_index, -1)# vmprof jit line indexes are positive
         else:
-            return thread.add_frame(funcname, -1, filename, categorys[-1], -1, -1)
+            return thread.add_frame(funcname, -1, filename, categories[-1], -1, -1)
 
     def add_native_frame(self, thread, stack_info):
         funcname = stack_info
@@ -237,15 +235,15 @@ class Converter:
         frameindex = thread.add_frame(funcname, -1, filename, CATEGORY_NATIVE, -1, -1)
         return frameindex
     
-    def check_asm_frame(self, categorys, stack_info, thread, last_frame):
-        if len(categorys) > 0 and categorys[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
-            categorys.pop()
-            categorys.append(CATEGORY_JIT_INLINED)
+    def check_asm_frame(self, categories, stack_info, thread, last_frame):
+        if len(categories) > 0 and categories[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
+            categories.pop()
+            categories.append(CATEGORY_JIT_INLINED)
             last_nativesymbol_index = thread.frametable[last_frame][1]
             thread.nativesymbols[last_nativesymbol_index][2] = stack_info
         else:# asm disabled
             pass
-            #categorys.append(CATEGORY_ASM)#asm
+            #categories.append(CATEGORY_ASM)#asm
             #frames.append(thread.add_frame(stack_info[j], -1, ""))
 
     def get_last_func_file(self, thread, frames):
@@ -311,7 +309,7 @@ class Converter:
         static_meta["debug"] = False
         static_meta["version"] = 27
         static_meta["importedFrom"] = "VMProf"
-        static_meta["categories"] = self.dump_categorys()
+        static_meta["categories"] = self.dump_categories()
         static_meta["preprocessedProfileVersion"] = 47
         static_meta["symbolicated"] = True
         static_meta["markerSchema"] = []
@@ -337,16 +335,16 @@ class Converter:
         vmprof_meta["debug"] = False
         vmprof_meta["version"] = 27
         vmprof_meta["importedFrom"] = "VMProf"
-        vmprof_meta["categories"] = self.dump_categorys()
+        vmprof_meta["categories"] = self.dump_categories()
         vmprof_meta["preprocessedProfileVersion"] = 47
         vmprof_meta["symbolicated"] = True
         vmprof_meta["markerSchema"] = []
         
         return vmprof_meta
     
-    def dump_categorys(self):
-        categorys = []
-        categorys.append(
+    def dump_categories(self):
+        categories = []
+        categories.append(
             {
                 "name": "Python",
                 "color": "yellow",
@@ -355,7 +353,7 @@ class Converter:
                 ]
             }
         )
-        categorys.append(
+        categories.append(
             {
                 "name": "Memory",
                 "color": "red",
@@ -364,7 +362,7 @@ class Converter:
                 ]
             }
         )    
-        categorys.append(
+        categories.append(
             {
                 "name": "Native",
                 "color": "lightblue",
@@ -373,7 +371,7 @@ class Converter:
                 ]
             }
         )    
-        categorys.append(
+        categories.append(
             {
                 "name": "JIT",
                 "color": "purple",
@@ -382,7 +380,7 @@ class Converter:
                 ]
             }
         )    
-        categorys.append(
+        categories.append(
             {
                 "name": "ASM",
                 "color": "blue",
@@ -391,7 +389,7 @@ class Converter:
                 ]
             }
         )
-        categorys.append(
+        categories.append(
             {
                 "name": "JIT(Inlined)",
                 "color": "purple",
@@ -400,7 +398,7 @@ class Converter:
                 ]
             }
         )   
-        categorys.append(
+        categories.append(
             {
                 "name": "Mixed",
                 "color": "orange",
@@ -409,7 +407,7 @@ class Converter:
                 ]
             }
         )
-        categorys.append(
+        categories.append(
             {
                 "name": "Garbage Collection",
                 "color": "green",
@@ -418,7 +416,7 @@ class Converter:
                 ]
             }
         )
-        categorys.append(
+        categories.append(
             {
                 "name": "Interpreter",
                 "color": "yellow",
@@ -427,7 +425,7 @@ class Converter:
                 ]
             }
         )
-        return categorys
+        return categories
            
     def dump_counters(self):
         counter = {}
@@ -450,7 +448,8 @@ class Converter:
         return counter
     
     def get_mem_allocations(self):
-        mem_diff = [self.counters[0],self.counters[0]]# memory wont show up without two non zero samples
+        # Firefox Profiler seems to need two non zero samples
+        mem_diff = [self.counters[0],self.counters[0]]
         current_mem = mem_diff[0][1]
         for ctr in self.counters[1:len(self.counters) - 1 ]:
             mem_diff.append([ctr[0], (current_mem - ctr[1])])
@@ -514,16 +513,16 @@ class Thread:
             self.stringarray_positions[string] = result
             return result
         
-    def add_stack(self, stack, categorys):
+    def add_stack(self, stack, categories):
         #stack is a list of frametable indexes
         if not stack:
             return None
         else:
             top = stack[-1]
             rest = stack[:-1]
-            top_category = categorys[-1]
-            rest_categorys = categorys[:-1]
-            rest_index = self.add_stack(rest, rest_categorys)
+            top_category = categories[-1]
+            rest_categories = categories[:-1]
+            rest_index = self.add_stack(rest, rest_categories)
             key = (top, rest_index, top_category)
             if key in self.stacktable_positions:
                 return self.stacktable_positions[key]
@@ -554,7 +553,7 @@ class Thread:
             functable_index = self.add_func(funcname, file, line, category, libindex)
             frametable_index = len(self.frametable)
             nativesymbol_index = self.add_nativesymbol(libindex, funcname, addr)
-            self.frametable.append([functable_index, nativesymbol_index, line])
+            self.frametable.append([functable_index, nativesymbol_index, line, category])
             self.frametable_positions[key] = frametable_index
             return frametable_index
         
@@ -641,7 +640,7 @@ class Thread:
         ftable = {}
         ftable["address"] = [-1 for _ in self.frametable]
         ftable["inlineDepth"] = [0 for _ in self.frametable]
-        ftable["category"] = [0 for _ in self.frametable]
+        ftable["category"] = [frame[3] for frame in self.frametable]
         ftable["subcategory"] = [None for _ in self.frametable]
         ftable["func"] = [frame[0] for frame in self.frametable]
         ftable["innerWindowID"] = [0 for _ in self.frametable]
