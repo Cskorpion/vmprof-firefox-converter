@@ -1,6 +1,7 @@
 import vmprof
 import json
 import os
+import sys
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
@@ -14,6 +15,18 @@ CATEGORY_JIT_INLINED = 5
 CATEGORY_MIXED = 6
 CATEGORY_GC = 7
 CATEGORY_INTERPRETER = 8
+CATEGORY_GC_MINOR_TENURED = 9
+CATEGORY_GC_MINOR_DIED = 10
+
+# Copied from vmprof/reader.py
+VMPROF_VERSION_BASE = 0
+VMPROF_VERSION_THREAD_ID = 1
+VMPROF_VERSION_TAG = 2
+VMPROF_VERSION_MEMORY = 3
+VMPROF_VERSION_MODE_AWARE = 4
+VMPROF_VERSION_DURATION = 5
+VMPROF_VERSION_TIMESTAMP = 6
+VMPROF_VERSION_SAMPLE_TIMEOFFSET = 7
 
 PPL_TIME = 0
 PPL_ACTION = 1
@@ -58,8 +71,11 @@ def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
     c = Converter()
     stats = vmprof.read_profile(vmprof_path)
     c.walk_samples(stats)
-    c.walk_gc_samples(stats)
-    if False and pypylog_path and times:
+    #c.walk_gc_samples(stats)
+    #c.walk_gc_obj_info(stats)
+    c.walk_gc_samples_w_obj_info(stats)
+    #c.create_gc_minor_marker(stats)
+    if pypylog_path and times:
         pypylog = parse_pypylog(pypylog_path)
         if times is not None:
             total_runtime_micros = (times[1] - times[0]) * 1000000
@@ -104,6 +120,18 @@ class Converter:
             return 7
         lowest_tid = min(list(self.threads.keys())) - 1
         return lowest_tid
+
+    def create_gc_minor_marker(self, stats):
+        first_timestamp = stats.start_time.timestamp()
+
+        thread = self.gc_sampled_threads[0]
+
+        gc_minor_str_id = thread.add_string("GC Minor")
+
+        for sample in stats.gc_obj_info:
+            _, timestamp = sample
+            start = (timestamp - first_timestamp) * 1000
+            thread.add_marker(start, start + 1, gc_minor_str_id) # TODO need real minor time
     
     def walk_pypylog(self, pypylog):
         tid = self.get_unused_tid()
@@ -288,6 +316,137 @@ class Converter:
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
 
+
+    def walk_gc_samples_w_obj_info(self, stats):
+        # New function for gc_samples and obj info.
+        # Idea: have one extra bottom frame that tells what kind of object triggerred the sample
+        if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
+
+        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
+            sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
+        else:
+            sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
+            sampletime /= len(stats.gc_profiles)
+
+        if "sample_allocated_bytes" in stats.meta:
+            sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
+        else:
+            sample_allocated_bytes = 0
+
+        obj_info_stack_count = len(stats.gc_obj_info)
+        obj_info_stack_ctr = 0
+        obj_info_stack, _ = stats.gc_obj_info[obj_info_stack_ctr]
+        obj_info_ctr = 0
+
+        category_dict = {}
+        category_dict["py"] = CATEGORY_PYTHON
+        category_dict["n"] = CATEGORY_NATIVE
+        for i, sample in enumerate(stats.gc_profiles):
+            frames = []
+            categorys = []
+            stack_info, _, tid, memory = sample
+            if tid in self.gc_sampled_threads:
+                thread = self.gc_sampled_threads[tid]
+            else:
+                thread = self.gc_sampled_threads[tid] = Thread() 
+                thread.tid = tid
+                thread.name = "(GC-Sampled) Thread " + str(len(self.gc_sampled_threads) - 1)# Threads seem to need different names
+            if stats.profile_lines:
+                indexes = range(0, len(stack_info), 2)
+            else:
+                indexes = range(len(stack_info))
+
+            for j in indexes:
+                addr_info = stats.get_addr_info(stack_info[j])
+                if len(categorys) != 0:
+                    if not isinstance(stack_info[j], AssemblerCode) and categorys[-1] == CATEGORY_JIT:
+                        frames.pop()
+                        categorys.pop()
+                if isinstance(stack_info[j], JittedCode):
+                    frames.append(self.add_jit_frame(thread, categorys, addr_info, frames))
+                elif isinstance(stack_info[j], AssemblerCode):
+                    self.check_asm_frame(categorys, stack_info[j], thread, frames[-1])
+                elif addr_info is None: # Class NativeCode isnt used
+                    #pass
+                    categorys.append(CATEGORY_NATIVE)
+                    frames.append(self.add_native_frame(thread, stack_info[j]))                   
+                elif isinstance(stack_info[j], int): 
+                    categorys.append(category_dict[addr_info[0]])  
+                    frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categorys[-1], j))
+            
+            if obj_info_stack_ctr != -1:
+                # get obj info: one obj info 'sample' per gc sample. up to last minor gc
+                survived_minor_gc = bool(obj_info_stack[obj_info_ctr] & 1)
+                rtype_id = obj_info_stack[obj_info_ctr] >> 1
+                obj_info_ctr += 1
+                if "__rtype_" + str(rtype_id) in stats.meta:
+                    rtype_str = stats.meta["__rtype_" + str(rtype_id)]
+                else:
+                    rtype_str = ""
+                categorys.append(CATEGORY_GC_MINOR_TENURED if survived_minor_gc else CATEGORY_GC_MINOR_DIED)
+                frames.append(self.add_gc_obj_frame(thread, rtype_str, None, categorys[-1]))
+
+                if obj_info_ctr == len(obj_info_stack):
+                    obj_info_stack_ctr += 1
+                    if obj_info_stack_ctr < obj_info_stack_count:
+                        obj_info_stack, _ = stats.gc_obj_info[obj_info_stack_ctr]
+                        obj_info_ctr = 0
+                    else:
+                        obj_info_stack_ctr = -1 # walked all obj info stacks
+
+                   
+            stackindex = thread.add_stack(frames, categorys)
+            if "start_time_offset" in stats.meta: 
+                timestamp = 1000 * stats.gc_profiles[i][1] - sampletime# timestamp field in new version  
+            else:
+                timestamp = i * sampletime
+
+            thread.add_sample(stackindex, timestamp)
+            thread.add_allocation(stackindex, timestamp, sample_allocated_bytes)
+            
+            if stats.profile_memory == True:
+                self.counters.append([timestamp, memory * 1000])
+
+    
+    def walk_gc_obj_info(self, stats):
+        # New function for gc obj_info.
+        # After a minor gc, vmprof will gather information about which objects died and survived 
+        # between the last abnd current minor collection.
+        if not hasattr(stats, "gc_obj_info") or len(stats.gc_obj_info) == 0: return
+
+        tid = -1
+
+        first_timestamp = stats.start_time.timestamp()
+
+        if tid in self.gc_sampled_threads:
+            thread = self.gc_sampled_threads[tid]
+        else:
+            thread = self.gc_sampled_threads[tid] = Thread() 
+            thread.tid = tid
+            thread.name = "Minor GC"
+
+        for sample in stats.gc_obj_info:
+            frames = []
+            categorys = []
+            stack_info, timestamp = sample
+
+            for j in range(len(stack_info)):
+                survived_minor_gc = bool(stack_info[j] & 1)
+                rtype_id = stack_info[j] >> 1
+                if "__rtype_" + str(rtype_id) in stats.meta:
+                    rtype_str = stats.meta["__rtype_" + str(rtype_id)]
+                else:
+                    rtype_str = ""
+                categorys.append(CATEGORY_GC_MINOR_TENURED if survived_minor_gc else CATEGORY_GC_MINOR_DIED)
+                frames.append(self.add_gc_obj_frame(thread, rtype_str, None, categorys[-1]))# Add PyPy type descr here
+            stackindex = thread.add_stack(frames, categorys)
+            thread.add_sample(stackindex, (timestamp - first_timestamp) * 1000)
+
+    def add_gc_obj_frame(self, thread, rpy_name, pypy_name_hint, category):
+        lib_index = self.add_lib("rpython", rpy_name)
+        return thread.add_frame(rpy_name, -1, "rpython" if pypy_name_hint == None else "pypy", category, lib_index, -1)
+
+
     def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, category, j):# native or python frame
         funcname = addr_info[1]
         funcline = addr_info[2]
@@ -408,16 +567,21 @@ class Converter:
 
     def dump_vmprof_meta(self, stats):
         vmprof_meta = {}
+        ms_for_sample = 0
         if "period" in stats.meta:
-            ms_for_sample = 1000 * float(stats.getmeta("period", "0.0"))
-        elif hasattr(stats, "gc_profiles") and len(stats.gc_profiles) != 0:
-            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles)) * 0.000001
+            ms_for_sample = 1000 * float(stats.getmeta("period", "0.1"))# firefox profiler doesnt like a zero as interval
+            print("A", ms_for_sample)
+        
+        if ms_for_sample == 0 and hasattr(stats, "gc_profiles") and len(stats.gc_profiles) != 0:
+            ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles)) * 0.001
+            print("B", ms_for_sample)
         else:
             ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles)) * 0.000001
+            print("C", ms_for_sample)
         
-        vmprof_meta["interval"] = ms_for_sample # mili-seconds
-        vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
-        vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
+        vmprof_meta["interval"] = ms_for_sample #seconds
+        vmprof_meta["startTime"] = 1681890179831.0
+        vmprof_meta["shutdownTime"] = 1681890180325.0
         vmprof_meta["abi"] = stats.interp # interpreter
 
         os = stats.getmeta("os","default os")
@@ -516,6 +680,24 @@ class Converter:
             {
                 "name": "Interpreter",
                 "color": "yellow",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        )
+        categorys.append(
+            {
+                "name": "GC Minor Tenured",
+                "color": "red",
+                "subcategories": [
+                    "Other"
+                ]
+            }
+        )
+        categorys.append(
+            {
+                "name": "GC Minor Collected",
+                "color": "green",
                 "subcategories": [
                     "Other"
                 ]
@@ -692,10 +874,11 @@ class Thread:
         thread["processName"] = "Parent Process"
         thread["processStartupTime"] = 0
         thread["processShutdownTime"] = None
-        thread["registerTime"] = 23.841461000000002
+        thread["registerTime"] = 0#23.841461000000002
         thread["unregisterTime"] = None
         thread["tid"] = self.tid
         thread["pid"] = "51580"
+        #thread["showMarkersInTimeline"] = True
         thread["markers"] = self.dump_markers()
         thread["nativeSymbols"] = self.dump_nativesymbols()
         thread["frameTable"] = self.dump_frametable()
@@ -789,6 +972,7 @@ class Thread:
         stable = {}
         stable["frame"] = [stack[0] for stack in self.stacktable]
         stable["category"] = [stack[2] for stack in self.stacktable]
+        #print(stable["category"])
         stable["subcategory"] = [None for _ in self.stacktable]
         stable["prefix"] = [stack[1] for stack in self.stacktable]
         stable["length"] = len(self.stacktable)
