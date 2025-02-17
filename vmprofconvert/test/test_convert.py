@@ -49,7 +49,7 @@ def test_stringarray():
 def test_stacktable():
     t = Thread()
     assert t.add_stack([], 0) is None
-    stackindex0 = t.add_stack([1,2,3], [CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_PYTHON])# Top of Stack is 3    [stack], [categorys]
+    stackindex0 = t.add_stack([1,2,3], [CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_PYTHON])# Top of Stack is 3    [stack], [categories]
     stackindex1 = t.add_stack([1,2,3], [CATEGORY_PYTHON, CATEGORY_PYTHON, CATEGORY_PYTHON])
     assert stackindex0 == stackindex1 == 2
     assert t.stacktable == [[1,None, CATEGORY_PYTHON], [2,0, CATEGORY_PYTHON], [3,1, CATEGORY_PYTHON]]
@@ -63,7 +63,7 @@ def test_frametable():
     assert frameindex0 == frameindex1 == 0
     frameindex2 = t.add_frame("goose", -1, "dummyfile.py", CATEGORY_PYTHON, -1, -1)
     assert frameindex2 == frameindex1 + 1
-    assert t.frametable == [[0, -1, -1],[1, -1, -1]]
+    assert t.frametable == [[0, -1, -1, 0],[1, -1, -1, 0]]
     assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
 
 def test_functable():
@@ -108,7 +108,7 @@ def test_walksamples():
     c.walk_samples(stats)
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
-    assert t.frametable == [[0, 0, 7], [1, 1, 17], [2, 2, 117]]# stringtableindex, nativesymbol_index
+    assert t.frametable == [[0, 0, 7, 0], [1, 1, 17, 0], [2, 2, 117, 0]]# stringtableindex, nativesymbol_index, line, category
     assert t.stacktable == [[0, None, CATEGORY_PYTHON], [1, 0, CATEGORY_PYTHON], [2, 0, CATEGORY_PYTHON]]
     assert t.samples == [[1, 0.0], [2, 5000.0]]# stackindex time dummyeventdelay = 7
 
@@ -306,50 +306,50 @@ def test_pypy_pystone():
     assert CATEGORY_ASM not in stacktable["category"]
 
 def test_check_asm_frame():
-    categorys = []
+    categories = []
     c = Converter()
     thread = Thread()
     stack_info = "asm_function"
-    c.check_asm_frame(categorys, stack_info, thread, None)
-    assert categorys == []# asm frames currently disabled 
-    categorys.append(CATEGORY_JIT)
+    c.check_asm_frame(categories, stack_info, thread, None)
+    assert categories == []# asm frames currently disabled 
+    categories.append(CATEGORY_JIT)
     thread.add_frame("jit_function", 7, "dummyfile.py", CATEGORY_JIT, 0, -1)
-    c.check_asm_frame(categorys, stack_info, thread, 0)
-    assert categorys == [CATEGORY_JIT_INLINED]# jit frame + asm frame => jit_inlined frame
+    c.check_asm_frame(categories, stack_info, thread, 0)
+    assert categories == [CATEGORY_JIT_INLINED]# jit frame + asm frame => jit_inlined frame
 
 def test_add_native_frame():
     c = Converter()
     thread = Thread()
     stack_info = "native_function"
     c.add_native_frame(thread, stack_info)
-    assert thread.frametable == [[0, -1, -1]]
+    assert thread.frametable == [[0, -1, -1, 2]]
     assert thread.functable == [[0, 1, -1, -1]]
     assert thread.stringarray == [stack_info, ""]
 
 def test_add_jit_frame_to_mixed():
     c = Converter()
     thread = Thread()
-    categorys =  [CATEGORY_PYTHON]
+    categories =  [CATEGORY_PYTHON]
     addr_info_jit = ("", "function_a", 7, "dummyfile.py")
     frame_index0 = thread.add_frame(addr_info_jit[1], 7, addr_info_jit[3], CATEGORY_PYTHON, -1, -1)
     frames = [frame_index0]
-    frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit, frames)
+    frame_index1 = c.add_jit_frame(thread, categories, addr_info_jit, frames)
     frames.append(frame_index1)
-    assert categorys == [CATEGORY_MIXED]
+    assert categories == [CATEGORY_MIXED]
     assert frames == [1]
 
 def test_add_jit_frame_not_mixed():
     c = Converter()
     thread = Thread()
-    categorys =  []
+    categories =  []
     frames = []
     addr_info_jit0 = ("", "function_a", 7, "dummyfile.py")
     addr_info_jit1 = ("", "function_b", 17, "dummyfile.py")
-    frame_index0 = c.add_jit_frame(thread, categorys, addr_info_jit0, frames)
+    frame_index0 = c.add_jit_frame(thread, categories, addr_info_jit0, frames)
     frames.append(frame_index0)
-    frame_index1 = c.add_jit_frame(thread, categorys, addr_info_jit1, frames)
+    frame_index1 = c.add_jit_frame(thread, categories, addr_info_jit1, frames)
     frames.append(frame_index1)
-    assert categorys == [CATEGORY_JIT, CATEGORY_JIT]
+    assert categories == [CATEGORY_JIT, CATEGORY_JIT]
     assert frames == [0,1]
 
 def test_add_vmprof_frame():
@@ -362,7 +362,7 @@ def test_add_vmprof_frame():
     profile_lines = True
     c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, CATEGORY_PYTHON, 0)
     c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, CATEGORY_NATIVE, 2)
-    assert thread.frametable == [[0, 0, 7], [1, 1, 0]]
+    assert thread.frametable == [[0, 0, 7, 0], [1, 1, 0, 2]]
     assert thread.functable == [[0, 1, 7, 0], [2, 1, 0, 1]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b"]
 
@@ -437,7 +437,7 @@ def test_create_pypylog_marker(): # create_pypylog_marker is no longer in use
     initial_pypylog = parse_pypylog(pypylog_path)
     rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000000)
     filtered_pypylog = filter_top_level_logs(rescaled_pypylog[:20])
-    t.create_pypylog_marker(filtered_pypylog)# marker do not use categorys, but strings 
+    t.create_pypylog_marker(filtered_pypylog)# marker do not use categories, but strings 
     assert t.markers[0] == [0, 10, 1]#gc or jit
     assert t.markers[1] == [11, 19, 0]#interp
     assert t.markers[2] == [20, 30, 2]#gc or jit
@@ -774,6 +774,43 @@ def test_extract_files():
     assert filecontent["/home/users/me/goose.prof"] == "0x7"
     assert filecontent["C:\\users\\myself\\frog.jitlog"] == "0x17"
 
+
+def test_categories_in_frametable():
+    ### Test if categories are stored in frameTable
+    ### Firefox Profiler doesnt use stackTable categories anymore
+    ### But im unsure if thats intended so we have redundant categories for now
+    c = Converter()
+    thread = Thread()
+    addr_info_py = ("py", "function_a", 7, "dummyfile.py")
+    addr_info_n = ("n", "function_b", 0, "dummyfile.py")
+    addr_info_jit = ("jit", "function_c", 0, "dummyfile.py")
+    stack_info = [0, -7, 1, 0]# addr, line, addr, line
+    profile_lines = True
+
+    frame_py = c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, CATEGORY_PYTHON, 0)
+    frame_n  = c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, CATEGORY_NATIVE, 2)
+
+    # categories & frames inside 'walk_samples' should look like this
+    categories = [CATEGORY_PYTHON, CATEGORY_NATIVE]
+    frames = [frame_py, frame_n]
+
+    c.add_jit_frame(thread, categories, addr_info_jit, frames)
+
+    assert thread.frametable == [[0, 0, 7, CATEGORY_PYTHON], [1, 1, 0, CATEGORY_NATIVE], [2, 2, 0, CATEGORY_JIT]] # categories now also in frametable
+    assert thread.functable == [[0, 1, 7, 0], [2, 1, 0, 1], [3, 1, 0, 2]]
+    assert thread.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
+
+def test_dumps_vmprof_categories_inf_frametable():
+    ### Test if frameTable categories are correctly dumped into json
+    vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/vmprof_cpuburn.prof")
+
+    jsonstr, _ = convert_stats_with_pypylog(vmprof_path=vmprof_path, pypylog_path=None, times=None)
+    profile = json.loads(jsonstr)
+    frames = profile["threads"][0]["frameTable"] 
+
+    # this profile contains python and native frames
+    assert CATEGORY_PYTHON in frames["category"]
+    assert CATEGORY_NATIVE in frames["category"]
 
 # This test does only make sense when running vmprof with sample-timestamp support like 
 # https://github.com/Cskorpion/vmprof-python/tree/sample_timestamps
