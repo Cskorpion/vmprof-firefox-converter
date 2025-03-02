@@ -68,12 +68,12 @@ def test_frametable():
 
 def test_functable():
     t = Thread()
-    funcindex0 = t.add_func("function_a", "dummyfile.py", 7, CATEGORY_PYTHON, -1)# func, file, line, resource
-    funcindex1 = t.add_func("function_a", "dummyfile.py", 7, CATEGORY_PYTHON, -1 )
+    funcindex0 = t.add_func("function_a", "dummyfile.py", 7, CATEGORY_PYTHON, -1)# func, file, line, category, resource, is_python
+    funcindex1 = t.add_func("function_a", "dummyfile.py", 7, CATEGORY_PYTHON, -1)
     assert funcindex0 == funcindex1 == 0
     funcindex2 = t.add_func("function_b", "dummyfile.py", 17, CATEGORY_PYTHON, -1)
     assert funcindex2 == funcindex1 + 1
-    assert t.functable == [[0, 1, 7, -1],[2, 1, 17, -1]]
+    assert t.functable == [[0, 1, 7, -1, True],[2, 1, 17, -1, True]]
     assert t.stringarray == ["function_a", "dummyfile.py" , "function_b"]
 
 def test_sampleslist():
@@ -323,7 +323,7 @@ def test_add_native_frame():
     stack_info = "native_function"
     c.add_native_frame(thread, stack_info)
     assert thread.frametable == [[0, -1, -1, 2]]
-    assert thread.functable == [[0, 1, -1, -1]]
+    assert thread.functable == [[0, 1, -1, -1, False]]
     assert thread.stringarray == [stack_info, ""]
 
 def test_add_jit_frame_to_mixed():
@@ -363,7 +363,7 @@ def test_add_vmprof_frame():
     c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, CATEGORY_PYTHON, 0)
     c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, CATEGORY_NATIVE, 2)
     assert thread.frametable == [[0, 0, 7, 0], [1, 1, 0, 2]]
-    assert thread.functable == [[0, 1, 7, 0], [2, 1, 0, 1]]
+    assert thread.functable == [[0, 1, 7, 0, True], [2, 1, 0, 1, False]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b"]
 
 def test_add_lib():
@@ -797,7 +797,7 @@ def test_categories_in_frametable():
     c.add_jit_frame(thread, categories, addr_info_jit, frames)
 
     assert thread.frametable == [[0, 0, 7, CATEGORY_PYTHON], [1, 1, 0, CATEGORY_NATIVE], [2, 2, 0, CATEGORY_JIT]] # categories now also in frametable
-    assert thread.functable == [[0, 1, 7, 0], [2, 1, 0, 1], [3, 1, 0, 2]]
+    assert thread.functable == [[0, 1, 7, 0, True], [2, 1, 0, 1, False], [3, 1, 0, 2, False]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
 
 def test_dumps_vmprof_categories_inf_frametable():
