@@ -193,6 +193,12 @@ class Converter:
         thread.add_sample(stackindex, logtime_start)
         thread.add_sample(stackindex, logtime_end)
 
+    def get_sample_time(self,stats):
+        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
+            return float(stats.getmeta("start_time_offset", "0")) * 1000
+        else:
+            sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
+            return sampletime / len(stats.gc_profiles)
     
     def walk_samples(self, stats):
         if not stats.profiles:
@@ -248,22 +254,23 @@ class Converter:
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
 
+    def get_thread_gc_sampled(self, tid):
+        if tid in self.gc_sampled_threads:
+            thread = self.gc_sampled_threads[tid]
+        else:
+            thread = self.gc_sampled_threads[tid] = Thread() 
+            thread.tid = tid
+            thread.name = "(GC-Sampled) Thread " + str(len(self.gc_sampled_threads) - 1)# Threads seem to need different names
+        return thread
+
     def walk_gc_samples(self, stats):
         # New function for gc_samples.
         # May not usefull now but i dont want to make the walk_samples func more complicated
         # as soon as gc samples carry more information 
         if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
 
-        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
-            sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
-        else:
-            sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
-            sampletime /= len(stats.gc_profiles)
-
-        if "sample_allocated_bytes" in stats.meta:
-            sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
-        else:
-            sample_allocated_bytes = 0
+        sampletime = self.get_sample_time(stats)
+        sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
 
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
@@ -316,41 +323,33 @@ class Converter:
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
 
+    def get_next_sampled_object(self, stats):
+        last_timestamp = None
+        for obj_info_stack in stats.gc_obj_info:
+            stack, timestamp = obj_info_stack
+            for sampled_object in stack:
+                yield (sampled_object, timestamp, last_timestamp)
+            last_timestamp = timestamp
 
     def walk_gc_samples_w_obj_info(self, stats):
         # New function for gc_samples and obj info.
-        # Idea: have one extra bottom frame that tells what kind of object triggerred the sample
+        # Idea: have one extra top frame that tells what kind of object triggerred the sample
         if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
 
-        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check if vmprof supports it
-            sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
-        else:
-            sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
-            sampletime /= len(stats.gc_profiles)
+        sampletime = self.get_sample_time(stats)# start 'timestamp' when sampling started
+        sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
 
-        if "sample_allocated_bytes" in stats.meta:
-            sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
-        else:
-            sample_allocated_bytes = 0
+        category_dict = {"py": CATEGORY_PYTHON,
+                         "n":  CATEGORY_NATIVE}
+        
+        obj_info_getter = self.get_next_sampled_object(stats)
 
-        obj_info_stack_count = len(stats.gc_obj_info)
-        obj_info_stack_ctr = 0
-        obj_info_stack, _ = stats.gc_obj_info[obj_info_stack_ctr]
-        obj_info_ctr = 0
-
-        category_dict = {}
-        category_dict["py"] = CATEGORY_PYTHON
-        category_dict["n"] = CATEGORY_NATIVE
         for i, sample in enumerate(stats.gc_profiles):
-            frames = []
-            categories = []
-            stack_info, _, tid, memory = sample
-            if tid in self.gc_sampled_threads:
-                thread = self.gc_sampled_threads[tid]
-            else:
-                thread = self.gc_sampled_threads[tid] = Thread() 
-                thread.tid = tid
-                thread.name = "(GC-Sampled) Thread " + str(len(self.gc_sampled_threads) - 1)# Threads seem to need different names
+            frames, categories = [], []
+            stack_info, sample_timestamp, tid, memory = sample
+
+            thread = self.get_thread_gc_sampled(tid)
+
             if stats.profile_lines:
                 indexes = range(0, len(stack_info), 2)
             else:
@@ -358,6 +357,7 @@ class Converter:
 
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
+                #remove jit frames # quick fix 
                 if len(categories) != 0:
                     if not isinstance(stack_info[j], AssemblerCode) and categories[-1] == CATEGORY_JIT:
                         frames.pop()
@@ -373,34 +373,34 @@ class Converter:
                 elif isinstance(stack_info[j], int): 
                     categories.append(category_dict[addr_info[0]])  
                     frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categories[-1], j))
-            
-            if obj_info_stack_ctr != -1:
-                # get obj info: one obj info 'sample' per gc sample. up to last minor gc
-                survived_minor_gc = bool(obj_info_stack[obj_info_ctr] & 1)
-                rtype_id = obj_info_stack[obj_info_ctr] >> 1
-                obj_info_ctr += 1
-                if "__rtype_" + str(rtype_id) in stats.meta:
-                    rtype_str = stats.meta["__rtype_" + str(rtype_id)]
-                else:
-                    rtype_str = ""
-                categories.append(CATEGORY_GC_MINOR_TENURED if survived_minor_gc else CATEGORY_GC_MINOR_DIED)
-                frames.append(self.add_gc_obj_frame(thread, rtype_str, None, categories[-1]))
-
-                if obj_info_ctr == len(obj_info_stack):
-                    obj_info_stack_ctr += 1
-                    if obj_info_stack_ctr < obj_info_stack_count:
-                        obj_info_stack, _ = stats.gc_obj_info[obj_info_stack_ctr]
-                        obj_info_ctr = 0
-                    else:
-                        obj_info_stack_ctr = -1 # walked all obj info stacks
 
                    
-            stackindex = thread.add_stack(frames, categories)
             if "start_time_offset" in stats.meta: 
-                timestamp = 1000 * stats.gc_profiles[i][1] - sampletime# timestamp field in new version  
+                timestamp = 1000 * sample_timestamp - sampletime# stats.gc_profiles[i][1] = seconds => * 1000 for milis
             else:
                 timestamp = i * sampletime
 
+            obj_info = next(obj_info_getter, None)
+            # If there is obj info add that recorded type as top level frame onto sample stack
+            if obj_info:
+                obj_info, obj_timestamp, last_obj_timestamp = obj_info
+                # The following assertion are checks if the objects are correctly pplaced ontop of the right samples
+                assert obj_timestamp >=  sample_timestamp # obj info is dumped in the next minor collection after samples were done
+                if last_obj_timestamp:
+                    assert sample_timestamp >= last_obj_timestamp # sample must have been recorded after LAST minor collection
+
+                survived_minor_gc = bool(obj_info & 1)
+                external_malloced = bool(obj_info & 2)
+                rpy_type_id = obj_info >> 2
+                rpy_type = stats.getmeta("__rtype_" + str(rpy_type_id), "")
+
+                categories.append(CATEGORY_GC_MINOR_TENURED if survived_minor_gc else CATEGORY_GC_MINOR_DIED)
+                frames.append(self.add_gc_obj_frame(thread, rpy_type, None, categories[-1]))
+
+            elif len(stats.gc_obj_info) != 0:# sanity: print if we have less obj than samples
+                print("no more object info :(")
+
+            stackindex = thread.add_stack(frames, categories)
             thread.add_sample(stackindex, timestamp)
             thread.add_allocation(stackindex, timestamp, sample_allocated_bytes)
             
@@ -570,14 +570,11 @@ class Converter:
         ms_for_sample = 0
         if "period" in stats.meta:
             ms_for_sample = 1000 * float(stats.getmeta("period", "0.1"))# firefox profiler doesnt like a zero as interval
-            print("A", ms_for_sample)
         
         if ms_for_sample == 0 and hasattr(stats, "gc_profiles") and len(stats.gc_profiles) != 0:
             ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.gc_profiles)) * 0.001
-            print("B", ms_for_sample)
         else:
             ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles)) * 0.000001
-            print("C", ms_for_sample)
         
         vmprof_meta["interval"] = ms_for_sample #seconds
         vmprof_meta["startTime"] = 1681890179831.0
@@ -974,7 +971,6 @@ class Thread:
         stable = {}
         stable["frame"] = [stack[0] for stack in self.stacktable]
         stable["category"] = [stack[2] for stack in self.stacktable]
-        #print(stable["category"])
         stable["subcategory"] = [None for _ in self.stacktable]
         stable["prefix"] = [stack[1] for stack in self.stacktable]
         stable["length"] = len(self.stacktable)

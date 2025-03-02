@@ -6,16 +6,17 @@ from zipfile import ZipFile
 from vmprof.reader import JittedCode, AssemblerCode
 from vmprofconvert import convert
 from vmprofconvert import convert_vmprof, convert_stats_with_pypylog
-from vmprofconvert import convert_stats
-from vmprofconvert import Converter
-from vmprofconvert import Thread
-from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER, CATEGORY_GC
+from vmprofconvert import convert_stats, convert_gc_stats_with_pypylog
+from vmprofconvert import Converter, Thread
+from vmprofconvert import CATEGORY_PYTHON, CATEGORY_NATIVE, CATEGORY_JIT, CATEGORY_ASM, CATEGORY_JIT_INLINED, CATEGORY_MIXED, CATEGORY_INTERPRETER, CATEGORY_GC, CATEGORY_GC_MINOR_TENURED, CATEGORY_GC_MINOR_DIED
 from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
 from vmprofconvert.__main__ import write_file_dict, save_zip, load_zip_dict, extract_files
 
 class Dummystats():
     def __init__(self, profiles):
         self.profiles = profiles
+        self.gc_profiles = []
+        self.gc_obj_info = []
         self.profile_lines = True
         self.profile_memory = False
         self.end_time = Dummytime(10)
@@ -811,6 +812,54 @@ def test_dumps_vmprof_categories_inf_frametable():
     # this profile contains python and native frames
     assert CATEGORY_PYTHON in frames["category"]
     assert CATEGORY_NATIVE in frames["category"]
+
+def test_get_next_sampled_object():
+    ## Test get_next_sampled_object returning those stacks elementwise in correct order ##
+    converter = Converter()
+    stats = Dummystats([])
+    stats.gc_obj_info = [
+        ([1,2,3], 7),
+        ([4,5,6], 17),
+        ([7,8,9], 117),
+    ]
+
+    obj_info_gen = converter.get_next_sampled_object(stats)
+
+    assert next(obj_info_gen, None) == (1, 7, None)
+    assert next(obj_info_gen, None) == (2, 7, None)
+    assert next(obj_info_gen, None) == (3, 7, None)
+
+    assert next(obj_info_gen, None) == (4, 17, 7)
+    assert next(obj_info_gen, None) == (5, 17, 7)
+    assert next(obj_info_gen, None) == (6, 17, 7)
+
+    assert next(obj_info_gen, None) == (7, 117, 17)
+    assert next(obj_info_gen, None) == (8, 117, 17)
+    assert next(obj_info_gen, None) == (9, 117, 17)
+
+    assert next(obj_info_gen, None) == None
+
+
+def test_dumps_vmprof_ts_as_objinfo():
+    vmprof_path = os.path.join(os.path.dirname(__file__), "profiles/gcbench_as_obj.prof")
+    pypylog_path = None
+    times = None
+    jsonstr, _ = convert_gc_stats_with_pypylog(vmprof_path, pypylog_path, times)
+    profile = json.loads(jsonstr)
+
+    samples_gc = profile["threads"][0]["samples"] 
+
+    assert len(samples_gc["stack"]) == 430
+
+    gc_thread_stacktable = profile["threads"][0]["stackTable"] 
+
+    obj_info_count = 430
+
+    for i in range(obj_info_count):
+        stack_id = samples_gc["stack"][i]
+        print(i)
+        assert gc_thread_stacktable["category"][stack_id] in (CATEGORY_GC_MINOR_DIED, CATEGORY_GC_MINOR_TENURED)
+    
 
 # This test does only make sense when running vmprof with sample-timestamp support like 
 # https://github.com/Cskorpion/vmprof-python/tree/sample_timestamps
