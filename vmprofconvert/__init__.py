@@ -74,8 +74,9 @@ def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
     #c.walk_gc_samples(stats)
     #c.walk_gc_obj_info(stats)
     c.walk_gc_samples_w_obj_info(stats)
+    c.create_gc_thread_minor_marker(stats)
     #c.create_gc_minor_marker(stats)
-    if pypylog_path and times:
+    if pypylog_path:
         pypylog = parse_pypylog(pypylog_path)
         if times is not None:
             total_runtime_micros = (times[1] - times[0]) * 1000000
@@ -140,6 +141,7 @@ class Converter:
             plthread = self.threads[tid] = Thread()
             plthread.name = "PyPyLog"
             plthread.tid = tid
+            plthread.marker_schema = "PyPyLog"
         if plthread and pypylog:
             ppl_stack = []
             last_log = None
@@ -199,6 +201,16 @@ class Converter:
         else:
             sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
             return sampletime / len(stats.gc_profiles)
+        
+    def get_thread_gc_sampled(self, tid):
+        if tid in self.gc_sampled_threads:
+            thread = self.gc_sampled_threads[tid]
+        else:
+            thread = self.gc_sampled_threads[tid] = Thread() 
+            thread.tid = tid
+            thread.name = "(GC-Sampled) Thread " + str(len(self.gc_sampled_threads) - 1)# Threads seem to need different names
+            thread.marker_schema = "Garbage Collection"
+        return thread
     
     def walk_samples(self, stats):
         if not stats.profiles:
@@ -254,14 +266,6 @@ class Converter:
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
 
-    def get_thread_gc_sampled(self, tid):
-        if tid in self.gc_sampled_threads:
-            thread = self.gc_sampled_threads[tid]
-        else:
-            thread = self.gc_sampled_threads[tid] = Thread() 
-            thread.tid = tid
-            thread.name = "(GC-Sampled) Thread " + str(len(self.gc_sampled_threads) - 1)# Threads seem to need different names
-        return thread
 
     def walk_gc_samples(self, stats):
         # New function for gc_samples.
@@ -406,6 +410,22 @@ class Converter:
             
             if stats.profile_memory == True:
                 self.counters.append([timestamp, memory * 1000])
+
+    def create_gc_thread_minor_marker(self, stats):
+        thread = self.get_thread_gc_sampled(0)# handle gc threads better
+        st_id = thread.add_string("Minor Collection")
+        obj_info_getter = self.get_next_sampled_object(stats)
+        first_gc_time = stats.gc_obj_info[0][1] 
+
+        gc_time = next(obj_info_getter, (None, None, None))[1]
+        while gc_time:
+            marker_time = (gc_time - first_gc_time) * 1000
+            thread.add_marker(marker_time, marker_time + 0.02, st_id, {"dummy": "dummy value"})
+            new_gc_time = next(obj_info_getter, (None, None, None))[1]
+            while new_gc_time == gc_time: 
+                # we dont want the same minor collection marked multiple times
+                new_gc_time = next(obj_info_getter, (None, None, None))[1]
+            gc_time = new_gc_time
 
     
     def walk_gc_obj_info(self, stats):
@@ -595,9 +615,41 @@ class Converter:
         vmprof_meta["categories"] = self.dump_categories()
         vmprof_meta["preprocessedProfileVersion"] = 47
         vmprof_meta["symbolicated"] = True
-        vmprof_meta["markerSchema"] = []
+        vmprof_meta["markerSchema"] = self.dump_marker_schema()
         
         return vmprof_meta
+    
+    def dump_marker_schema(self):
+        schema = []
+
+        schema.append(
+            {
+                "type": "PyPyLog",
+                "name": "PyPyLog",
+                "tableLabel": "{marker.name}",
+                "display": ["marker-chart", "marker-table", "timeline-overview"],
+                "data": []
+            }
+        )
+
+        schema.append(
+            {
+                "type": "Garbage Collection",
+                "name": "Garbage Collection",
+                "tableLabel": "{marker.name}",
+                "display": ["marker-chart", "marker-table", "timeline-overview"],
+                "data": [
+                    {
+                        "key": "dummy",
+                        "format": "string",
+                        "searchable": False
+                    }
+                ]
+            }
+        )
+
+        return schema
+
     
     def dump_categories(self):
         categories = []
@@ -750,6 +802,7 @@ class Thread:
         self.resourcetable_positions = {}# key is (libindex, stringindex)
         self.markers = []# list of [startime, endtime, stringindex]
         self.allocations = [] # list of [stackindex, time in ms, memory allocated]
+        self.marker_schema = None # indicates the markerSchema used for markers in this thread
 
     def create_pypylog_marker(self, pypylog):
         interperter_string_id = self.add_string("interpreter")
@@ -778,8 +831,10 @@ class Thread:
         st_id = self.add_string("interpreter")## move out
         self.add_marker(starttime, endtime, st_id)
             
-    def add_marker(self, starttime, endtime, stringtable_index):
-        self.markers.append([starttime, endtime, stringtable_index])
+    def add_marker(self, starttime, endtime, stringtable_index, data={}):
+        data["type"] = self.marker_schema
+        self.markers.append([starttime, endtime, stringtable_index, data])
+
 
     def add_string(self, string):
         if string in self.stringarray_positions:
@@ -877,7 +932,7 @@ class Thread:
         thread["unregisterTime"] = None
         thread["tid"] = self.tid
         thread["pid"] = "51580"
-        #thread["showMarkersInTimeline"] = True
+        thread["showMarkersInTimeline"] = True
         thread["markers"] = self.dump_markers()
         thread["nativeSymbols"] = self.dump_nativesymbols()
         thread["frameTable"] = self.dump_frametable()
@@ -904,13 +959,41 @@ class Thread:
         return allocations
     
     def dump_markers(self):
+        if self.marker_schema == "PyPyLog": return self.dump_pypylog_markers()
+        if self.marker_schema == "Garbage Collection": return self.dump_gc_markers()
+        return self.dump_empty_markers()
+    
+    def dump_empty_markers(self):
         markers = {}
-        markers["data"] = [{"type": "PyPyLog"} for _ in self.markers]
+        markers["data"] = []
+        markers["name"] = []
+        markers["startTime"] = []
+        markers["endTime"] = []
+        markers["phase"] = []
+        markers["category"] = []
+        markers["length"] = 0
+        return markers
+    
+    def dump_gc_markers(self):
+        markers = {}
+        markers["data"] = []
+        markers["data"] = [m[3] for m in self.markers]
         markers["name"] = [m[2] for m in self.markers]
         markers["startTime"] = [m[0] for m in self.markers]
         markers["endTime"] = [m[1] for m in self.markers]
         markers["phase"] = [1 for _ in self.markers]
-        markers["category"] = [7 for _ in self.markers]
+        markers["category"] = [CATEGORY_GC for _ in self.markers]
+        markers["length"] = len(self.markers)
+        return markers
+
+    def dump_pypylog_markers(self):
+        markers = {}
+        markers["data"] = [{"type": self.marker_schema} for _ in self.markers]
+        markers["name"] = [m[2] for m in self.markers]
+        markers["startTime"] = [m[0] for m in self.markers]
+        markers["endTime"] = [m[1] for m in self.markers]
+        markers["phase"] = [1 for _ in self.markers]
+        markers["category"] = [CATEGORY_GC for _ in self.markers]
         markers["length"] = len(self.markers)
         return markers
  
