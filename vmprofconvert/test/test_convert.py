@@ -396,10 +396,11 @@ def test_add_resource():
 
 def test_add_marker():
     t = Thread()
-    t.add_marker(7, 17, 0) # starttime endtime stringtable_index
-    t.add_marker(17, 117, 1)
-    expected_marker0 = [7, 17, 0]
-    expected_marker1 = [17, 117, 1]
+    data = {"type", "test"}
+    t.add_marker(7, 17, 0, data) # starttime endtime stringtable_index
+    t.add_marker(17, 117, 1, data)
+    expected_marker0 = [7, 17, 0, {"type", "test"}]
+    expected_marker1 = [17, 117, 1, {"type", "test"}]
     assert t.markers == [expected_marker0, expected_marker1]
 
 def test_parse_pypylog():
@@ -439,10 +440,10 @@ def test_create_pypylog_marker(): # create_pypylog_marker is no longer in use
     rescaled_pypylog = rescale_pypylog(initial_pypylog[:1000], 10000000)
     filtered_pypylog = filter_top_level_logs(rescaled_pypylog[:20])
     t.create_pypylog_marker(filtered_pypylog)# marker do not use categories, but strings 
-    assert t.markers[0] == [0, 10, 1]#gc or jit
-    assert t.markers[1] == [11, 19, 0]#interp
-    assert t.markers[2] == [20, 30, 2]#gc or jit
-    assert t.markers[3] == [31, 39, 0]#interp
+    assert t.markers[0] == [0, 10, 1 , {"type": "PyPyLog"}]#gc or jit
+    assert t.markers[1] == [11, 19, 0, {"type": "PyPyLog"}]#interp
+    assert t.markers[2] == [20, 30, 2, {"type": "PyPyLog"}]#gc or jit
+    assert t.markers[3] == [31, 39, 0, {"type": "PyPyLog"}]#interp
 
 def test_walk_pypylog_marker(): # create_pypylog_marker is no longer in use
     pypylog_path = os.path.join(os.path.dirname(__file__), "profiles/pystone.pypylog")
@@ -458,11 +459,11 @@ def test_walk_pypylog_marker(): # create_pypylog_marker is no longer in use
 
     expected_interval = 1000000/100  * 0.001
 
-    assert thread.markers[0] == [0, expected_interval, gc_set_nursery_size_id] # first log
-    assert thread.markers[1] == [expected_interval + 1,2 * expected_interval -1, interpreter_id]# interpreter
-    assert thread.markers[2] == [2 * expected_interval, 3 * expected_interval, gc_hardware_id]# second log
-    assert thread.markers[3] == [3 * expected_interval + 1,4 * expected_interval -1, interpreter_id]# interpreter
-    assert thread.markers[4] == [4 * expected_interval, 5 * expected_interval, gc_hardware_id]# third log
+    assert thread.markers[0] == [0, expected_interval, gc_set_nursery_size_id, {"type": "PyPyLog"}] # first log
+    assert thread.markers[1] == [expected_interval + 1,2 * expected_interval -1, interpreter_id, {"type": "PyPyLog"}]# interpreter
+    assert thread.markers[2] == [2 * expected_interval, 3 * expected_interval, gc_hardware_id, {"type": "PyPyLog"}]# second log
+    assert thread.markers[3] == [3 * expected_interval + 1,4 * expected_interval -1, interpreter_id, {"type": "PyPyLog"}]# interpreter
+    assert thread.markers[4] == [4 * expected_interval, 5 * expected_interval, gc_hardware_id, {"type": "PyPyLog"}]# third log
 
 def test_get_unused_tid():
     c = Converter()
@@ -816,6 +817,7 @@ def test_dumps_vmprof_categories_inf_frametable():
 def test_get_next_sampled_object():
     ## Test get_next_sampled_object returning those stacks elementwise in correct order ##
     converter = Converter()
+    converter.gc_stat_types = []
     stats = Dummystats([])
     stats.gc_obj_info = [
         ([1,2,3], 7),
@@ -825,17 +827,17 @@ def test_get_next_sampled_object():
 
     obj_info_gen = converter.get_next_sampled_object(stats)
 
-    assert next(obj_info_gen, None) == (1, 7, None)
-    assert next(obj_info_gen, None) == (2, 7, None)
-    assert next(obj_info_gen, None) == (3, 7, None)
+    assert next(obj_info_gen, None) == (1, 7, [])
+    assert next(obj_info_gen, None) == (2, 7, [])
+    assert next(obj_info_gen, None) == (3, 7, [])
 
-    assert next(obj_info_gen, None) == (4, 17, 7)
-    assert next(obj_info_gen, None) == (5, 17, 7)
-    assert next(obj_info_gen, None) == (6, 17, 7)
+    assert next(obj_info_gen, None) == (4, 17, [])
+    assert next(obj_info_gen, None) == (5, 17, [])
+    assert next(obj_info_gen, None) == (6, 17, [])
 
-    assert next(obj_info_gen, None) == (7, 117, 17)
-    assert next(obj_info_gen, None) == (8, 117, 17)
-    assert next(obj_info_gen, None) == (9, 117, 17)
+    assert next(obj_info_gen, None) == (7, 117, [])
+    assert next(obj_info_gen, None) == (8, 117, [])
+    assert next(obj_info_gen, None) == (9, 117, [])
 
     assert next(obj_info_gen, None) == None
 
@@ -860,6 +862,31 @@ def test_dumps_vmprof_ts_as_objinfo():
         print(i)
         assert gc_thread_stacktable["category"][stack_id] in (CATEGORY_GC_MINOR_DIED, CATEGORY_GC_MINOR_TENURED)
     
+
+def test_create_gc_thread_minor_marker():
+    ## Test create_gc_thread_minor_marker ##
+    converter = Converter()
+    converter.gc_stat_types = ["gc_state"]
+    stats = Dummystats(["dummy"])
+    stats.gc_obj_info = [
+        ([0,1,2], 7),
+        ([1,3,4], 17),
+        ([2,5,6], 117),
+        ([3,7,8], 1117),
+    ]
+
+    thread = converter.get_thread_gc_sampled(0)
+    mc_id = thread.add_string("Minor Collection")
+
+    converter.create_gc_thread_minor_marker(stats)
+
+    markers = converter.gc_sampled_threads[0].markers
+
+    assert markers[0] == [0, 0.02, mc_id, {"type": "Garbage Collection", "gc_state": "SCANNING"}]
+    assert markers[1] == [10000, 10000.02, mc_id, {"type": "Garbage Collection", "gc_state": "MARKING"}]
+    assert markers[2] == [110000, 110000.02, mc_id, {"type": "Garbage Collection", "gc_state": "SWEEPING"}]
+    assert markers[3] == [1110000, 1110000.02, mc_id, {"type": "Garbage Collection", "gc_state": "FINALIZING"}]
+
 
 # This test does only make sense when running vmprof with sample-timestamp support like 
 # https://github.com/Cskorpion/vmprof-python/tree/sample_timestamps

@@ -33,6 +33,9 @@ PPL_ACTION = 1
 PPL_STARTING = 2
 PPL_DEPTH = 3
 
+# from pypy/.../incminimark.py
+PYPY_GC_STATES = ['SCANNING', 'MARKING', 'SWEEPING', 'FINALIZING']
+
 def convert(path):
     stats = vmprof.read_profile(path)
     c = Converter()
@@ -73,6 +76,7 @@ def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
     c.walk_samples(stats)
     #c.walk_gc_samples(stats)
     #c.walk_gc_obj_info(stats)
+    c.get_type_of_gc_stats(stats)
     c.walk_gc_samples_w_obj_info(stats)
     c.create_gc_thread_minor_marker(stats)
     #c.create_gc_minor_marker(stats)
@@ -89,7 +93,8 @@ class Converter:
     def __init__(self):
         self.threads = {}
         self.gc_sampled_threads = {}
-        self.counters = []
+        self.gc_stat_types = [] # Type of gc stats the current profile contains: e.g. ["vmRSS", "total_size_of_arensas",...]
+        self.counters = [] # contains memory information: [timestamp, memory in Byte]
         self.libs = []# list of [name, debugname]
         self.libs_positions = {}# key is string
     
@@ -203,6 +208,8 @@ class Converter:
             return sampletime / len(stats.gc_profiles)
         
     def get_thread_gc_sampled(self, tid):
+        """ Get or create the gc_thread for a given tid. 
+            Doesnt interfere with 'normal' threads """
         if tid in self.gc_sampled_threads:
             thread = self.gc_sampled_threads[tid]
         else:
@@ -213,6 +220,7 @@ class Converter:
         return thread
     
     def walk_samples(self, stats):
+        """ Convert all time samples"""
         if not stats.profiles:
             return
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
@@ -268,9 +276,7 @@ class Converter:
 
 
     def walk_gc_samples(self, stats):
-        # New function for gc_samples.
-        # May not usefull now but i dont want to make the walk_samples func more complicated
-        # as soon as gc samples carry more information 
+        """ Convert all gc samples"""
         if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
 
         sampletime = self.get_sample_time(stats)
@@ -328,17 +334,36 @@ class Converter:
                 self.counters.append([timestamp, memory * 1000])
 
     def get_next_sampled_object(self, stats):
-        last_timestamp = None
+        """ Iterate thorugh the obj info stacks and return next sampled obj with timestamp and previous timestamp """
         for obj_info_stack in stats.gc_obj_info:
             stack, timestamp = obj_info_stack
+            split = len(self.gc_stat_types)
+            stack, gc_stats = stack[split:], stack[:split]
             for sampled_object in stack:
-                yield (sampled_object, timestamp, last_timestamp)
-            last_timestamp = timestamp
+                yield (sampled_object, timestamp, gc_stats[::-1])# order of stats is inverted
+
+    def get_type_of_gc_stats(self, stats):
+        """ read what type of stats we recorded from PyPy's gc on a minor collection"""
+        i = 0
+        gc_stat = stats.getmeta("gc_stats__" + str(i), None)
+        self.gc_stat_types = []
+        while gc_stat != None:
+            self.gc_stat_types.append(gc_stat)
+            i += 1
+            gc_stat = stats.getmeta("gc_stats__" + str(i), None)
 
     def walk_gc_samples_w_obj_info(self, stats):
         # New function for gc_samples and obj info.
         # Idea: have one extra top frame that tells what kind of object triggerred the sample
         if not hasattr(stats, "gc_profiles") or len(stats.gc_profiles) == 0: return
+
+        obj_count = 0
+        for obj_info_stack in stats.gc_obj_info:
+            stack, timestamp = obj_info_stack
+            obj_count += len(stack) - len(self.gc_stat_types)
+        
+        assert len(stats.gc_profiles) == obj_count, f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}"
+        #print( f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}")
 
         sampletime = self.get_sample_time(stats)# start 'timestamp' when sampling started
         sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
@@ -348,9 +373,14 @@ class Converter:
         
         obj_info_getter = self.get_next_sampled_object(stats)
 
+        last_sample_timestamp = -7 
         for i, sample in enumerate(stats.gc_profiles):
             frames, categories = [], []
             stack_info, sample_timestamp, tid, memory = sample
+
+            # correctness check: assert that vmprof delivers samples in correct order
+            assert last_sample_timestamp <= sample_timestamp, f"order of sample {i-1} and sample {i} is wrong"
+            last_sample_timestamp = sample_timestamp
 
             thread = self.get_thread_gc_sampled(tid)
 
@@ -387,14 +417,13 @@ class Converter:
             obj_info = next(obj_info_getter, None)
             # If there is obj info add that recorded type as top level frame onto sample stack
             if obj_info:
-                obj_info, obj_timestamp, last_obj_timestamp = obj_info
-                # The following assertion are checks if the objects are correctly pplaced ontop of the right samples
-                assert obj_timestamp >=  sample_timestamp # obj info is dumped in the next minor collection after samples were done
-                if last_obj_timestamp:
-                    assert sample_timestamp >= last_obj_timestamp # sample must have been recorded after LAST minor collection
+                obj_info, obj_timestamp, _ = obj_info
+                # correctness check: obj info must be recorded at a minor collect AFTER the sample was recorded
+                assert sample_timestamp <= obj_timestamp
 
                 survived_minor_gc = bool(obj_info & 1)
                 external_malloced = bool(obj_info & 2)
+
                 rpy_type_id = obj_info >> 2
                 rpy_type = stats.getmeta("__rtype_" + str(rpy_type_id), "")
 
@@ -402,7 +431,8 @@ class Converter:
                 frames.append(self.add_gc_obj_frame(thread, rpy_type, None, categories[-1]))
 
             elif len(stats.gc_obj_info) != 0:# sanity: print if we have less obj than samples
-                print("no more object info :(")
+                assert False, "ran out of objects"
+                #print("no more object info :(")
 
             stackindex = thread.add_stack(frames, categories)
             thread.add_sample(stackindex, timestamp)
@@ -412,19 +442,26 @@ class Converter:
                 self.counters.append([timestamp, memory * 1000])
 
     def create_gc_thread_minor_marker(self, stats):
-        thread = self.get_thread_gc_sampled(0)# handle gc threads better
+        thread = self.get_thread_gc_sampled(0)# TODO:handle gc threads better
         st_id = thread.add_string("Minor Collection")
         obj_info_getter = self.get_next_sampled_object(stats)
         first_gc_time = stats.gc_obj_info[0][1] 
 
-        gc_time = next(obj_info_getter, (None, None, None))[1]
+        _, gc_time, gc_stats = next(obj_info_getter, (None, None, None))
         while gc_time:
             marker_time = (gc_time - first_gc_time) * 1000
-            thread.add_marker(marker_time, marker_time + 0.02, st_id, {"dummy": "dummy value"})
-            new_gc_time = next(obj_info_getter, (None, None, None))[1]
+            data = {"type": "Garbage Collection"}
+            for i in range(len(self.gc_stat_types)):
+                if self.gc_stat_types[i] == "gc_state":
+                    data["gc_state"] = PYPY_GC_STATES[int(gc_stats[i])]  
+                elif self.gc_stat_types[i] in ("total_memory_used", "total_size_of_arenas", "VmRSS"):
+                    data[self.gc_stat_types[i]] = str(gc_stats[i]) + "B"
+
+            thread.add_marker(marker_time, marker_time + 0.02, st_id, data)
+            _, new_gc_time, gc_stats = next(obj_info_getter, (None, None, None))
             while new_gc_time == gc_time: 
                 # we dont want the same minor collection marked multiple times
-                new_gc_time = next(obj_info_getter, (None, None, None))[1]
+                _, new_gc_time, gc_stats = next(obj_info_getter, (None, None, None))
             gc_time = new_gc_time
 
     
@@ -640,10 +677,10 @@ class Converter:
                 "display": ["marker-chart", "marker-table", "timeline-overview"],
                 "data": [
                     {
-                        "key": "dummy",
+                        "key": stat,
                         "format": "string",
-                        "searchable": False
-                    }
+                        "searchable": True
+                    } for stat in self.gc_stat_types 
                 ]
             }
         )
@@ -802,7 +839,6 @@ class Thread:
         self.resourcetable_positions = {}# key is (libindex, stringindex)
         self.markers = []# list of [startime, endtime, stringindex]
         self.allocations = [] # list of [stackindex, time in ms, memory allocated]
-        self.marker_schema = None # indicates the markerSchema used for markers in this thread
 
     def create_pypylog_marker(self, pypylog):
         interperter_string_id = self.add_string("interpreter")
@@ -813,26 +849,25 @@ class Thread:
             endtime = stop_log[0]
             name = start_log[1]
             st_id = self.add_string(name)
-            self.add_marker(starttime, endtime, st_id)
+            self.add_marker(starttime, endtime, st_id, {"type": "PyPyLog"})
             if i < ((len(pypylog)/2) - 2):
                 next_log = pypylog[2 * i + 2]
                 next_logtime_start = next_log[0]
                 if abs(endtime - next_logtime_start) > 2:
-                    self.add_marker(endtime + 1, next_logtime_start - 1, interperter_string_id)
+                    self.add_marker(endtime + 1, next_logtime_start - 1, interperter_string_id, {"type": "PyPyLog"})
 
     def create_single_pypylog_marker(self, start_log, stop_log):
         starttime = start_log[PPL_TIME]
         endtime = stop_log[PPL_TIME]
         name = start_log[PPL_ACTION]
         st_id = self.add_string(name)
-        self.add_marker(starttime, endtime, st_id)
+        self.add_marker(starttime, endtime, st_id, {"type": "PyPyLog"})
 
     def create_single_pypylog_interpreter_marker(self, starttime, endtime):
         st_id = self.add_string("interpreter")## move out
-        self.add_marker(starttime, endtime, st_id)
+        self.add_marker(starttime, endtime, st_id, {"type": "PyPyLog"})
             
-    def add_marker(self, starttime, endtime, stringtable_index, data={}):
-        data["type"] = self.marker_schema
+    def add_marker(self, starttime, endtime, stringtable_index, data):
         self.markers.append([starttime, endtime, stringtable_index, data])
 
 
@@ -873,7 +908,8 @@ class Thread:
             stringtable_index_file = self.add_string(file)
             resource_index = self.add_resource(libindex, stringtable_index_func)
             result = len(self.functable)
-            self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index])
+            is_js = category in (CATEGORY_PYTHON, CATEGORY_MIXED, CATEGORY_JIT, CATEGORY_JIT_INLINED)
+            self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index, is_js])
             self.funtable_positions[key] = result
             return result
             
@@ -958,10 +994,15 @@ class Thread:
         allocations["length"] = len(self.allocations)
         return allocations
     
-    def dump_markers(self):
+    """def dump_markers(self):
         if self.marker_schema == "PyPyLog": return self.dump_pypylog_markers()
         if self.marker_schema == "Garbage Collection": return self.dump_gc_markers()
         return self.dump_empty_markers()
+        #"cause": {
+        #    "tid": 18149,
+        #    "time": 7031375.131204297,
+        #    "stack": 88
+        #}"""
     
     def dump_empty_markers(self):
         markers = {}
@@ -974,9 +1015,8 @@ class Thread:
         markers["length"] = 0
         return markers
     
-    def dump_gc_markers(self):
+    def dump_markers(self):
         markers = {}
-        markers["data"] = []
         markers["data"] = [m[3] for m in self.markers]
         markers["name"] = [m[2] for m in self.markers]
         markers["startTime"] = [m[0] for m in self.markers]
@@ -986,16 +1026,16 @@ class Thread:
         markers["length"] = len(self.markers)
         return markers
 
-    def dump_pypylog_markers(self):
+    """def dump_pypylog_markers(self):
         markers = {}
-        markers["data"] = [{"type": self.marker_schema} for _ in self.markers]
+        markers["data"] = [m[3] for m in self.markers]
         markers["name"] = [m[2] for m in self.markers]
         markers["startTime"] = [m[0] for m in self.markers]
         markers["endTime"] = [m[1] for m in self.markers]
         markers["phase"] = [1 for _ in self.markers]
         markers["category"] = [CATEGORY_GC for _ in self.markers]
         markers["length"] = len(self.markers)
-        return markers
+        return markers"""
  
     def dump_resourcetable(self):
         resourcetable = {}
@@ -1039,7 +1079,7 @@ class Thread:
     
     def dump_functable(self):
         ftable = {}
-        ftable["isJS"] = [False for _ in self.functable]
+        ftable["isJS"] = [func[4] for func in self.functable]
         ftable["relevantForJS"] = [False for _ in self.functable]
         ftable["name"] = [func[0] for func in self.functable]
         ftable["resource"] = [func[3] for func in self.functable]
