@@ -541,7 +541,7 @@ class Thread:
             stringtable_index_file = self.add_string(file)
             resource_index = self.add_resource(libindex, stringtable_index_func)
             result = len(self.functable)
-            is_python = True if category == CATEGORY_PYTHON else False
+            is_python = category in (CATEGORY_PYTHON, CATEGORY_MIXED, CATEGORY_JIT, CATEGORY_JIT_INLINED)
             self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index, is_python])
             self.funtable_positions[key] = result
             return result
