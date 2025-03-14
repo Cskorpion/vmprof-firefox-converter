@@ -797,7 +797,7 @@ def test_categories_in_frametable():
     c.add_jit_frame(thread, categories, addr_info_jit, frames)
 
     assert thread.frametable == [[0, 0, 7, CATEGORY_PYTHON], [1, 1, 0, CATEGORY_NATIVE], [2, 2, 0, CATEGORY_JIT]] # categories now also in frametable
-    assert thread.functable == [[0, 1, 7, 0, True], [2, 1, 0, 1, False], [3, 1, 0, 2, False]]
+    assert thread.functable == [[0, 1, 7, 0, True], [2, 1, 0, 1, False], [3, 1, 0, 2, True]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
 
 def test_dumps_vmprof_categories_inf_frametable():
