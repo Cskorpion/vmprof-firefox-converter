@@ -541,7 +541,8 @@ class Thread:
             stringtable_index_file = self.add_string(file)
             resource_index = self.add_resource(libindex, stringtable_index_func)
             result = len(self.functable)
-            self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index])
+            is_python = category in (CATEGORY_PYTHON, CATEGORY_MIXED, CATEGORY_JIT, CATEGORY_JIT_INLINED)
+            self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index, is_python])
             self.funtable_positions[key] = result
             return result
             
@@ -644,6 +645,7 @@ class Thread:
         ftable["subcategory"] = [None for _ in self.frametable]
         ftable["func"] = [frame[0] for frame in self.frametable]
         ftable["innerWindowID"] = [0 for _ in self.frametable]
+        ftable["implementation"] = [None for frame in self.frametable]
         ftable["nativeSymbol"] = [frame[1] for frame in self.frametable]
         ftable["line"] = self.get_frametable_lines()
         ftable["length"] = len(self.frametable)
@@ -660,7 +662,7 @@ class Thread:
     
     def dump_functable(self):
         ftable = {}
-        ftable["isJS"] = [False for _ in self.functable]
+        ftable["isJS"] = [func[4] for func in self.functable]
         ftable["relevantForJS"] = [False for _ in self.functable]
         ftable["name"] = [func[0] for func in self.functable]
         ftable["resource"] = [func[3] for func in self.functable]
