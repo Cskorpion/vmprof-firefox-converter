@@ -442,6 +442,7 @@ class Converter:
                 self.counters.append([timestamp, memory * 1000])
 
     def create_gc_thread_minor_marker(self, stats):
+        if not hasattr(stats, "gc_obj_info") or len(stats.gc_obj_info) == 0: return
         thread = self.get_thread_gc_sampled(0)# TODO:handle gc threads better
         st_id = thread.add_string("Minor Collection")
         obj_info_getter = self.get_next_sampled_object(stats)
@@ -674,6 +675,7 @@ class Converter:
                 "type": "Garbage Collection",
                 "name": "Garbage Collection",
                 "tableLabel": "{marker.name}",
+                "description": "Garbage Collection Activities",
                 "display": ["marker-chart", "marker-table", "timeline-overview"],
                 "data": [
                     {
@@ -797,6 +799,7 @@ class Converter:
         counter["name"] = "Memory"
         counter["category"] = "Memory"
         counter["description"] = "Amount of allocated memory"
+        #counter["color"] = "red"
         counter["pid"] = "51580"
         counter["mainThreadIndex"] = 0
         memory_in_alloc_form =  self.get_mem_allocations()
