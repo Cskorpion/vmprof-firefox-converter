@@ -94,9 +94,10 @@ class Converter:
         self.threads = {}
         self.gc_sampled_threads = {}
         self.gc_stat_types = [] # Type of gc stats the current profile contains: e.g. ["vmRSS", "total_size_of_arensas",...]
-        self.counters = [] # contains memory information: [timestamp, memory in Byte]
+        self.counters = {} # contains different memory information: type: [[timestamp, memory in Byte], ...]
         self.libs = []# list of [name, debugname]
         self.libs_positions = {}# key is string
+        self.walked_vmrss = False# to only convert vmrss only the first time samples are converted
     
     def add_lib(self, name, debugname):
         if name == "-":
@@ -126,6 +127,11 @@ class Converter:
             return 7
         lowest_tid = min(list(self.threads.keys())) - 1
         return lowest_tid
+    
+    def add_counter(self, ctype, data):
+        if not ctype in self.counters:
+            self.counters[ctype] = []
+        self.counters[ctype].append(data)
 
     def create_gc_minor_marker(self, stats):
         first_timestamp = stats.start_time.timestamp()
@@ -223,11 +229,9 @@ class Converter:
         """ Convert all time samples"""
         if not stats.profiles:
             return
-        sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
-        sampletime /= len(stats.profiles)
+        sampletime = self.get_sample_time(stats)
 
-        if "start_time_offset" in stats.meta: # No version in stats TODO: Replace with version check when vmprof supports it
-            sampletime = float(stats.getmeta("start_time_offset", "0")) * 1000
+        print("time", sampletime)
 
         category_dict = {}
         category_dict["py"] = CATEGORY_PYTHON
@@ -271,8 +275,11 @@ class Converter:
             if "start_time_offset" in stats.meta: 
                 timestamp = 1000 * stats.profiles[i][1] - sampletime# timestamp field in new version  
             thread.add_sample(stackindex, timestamp)
-            if stats.profile_memory == True:
-                self.counters.append([timestamp, memory * 1000])
+            if stats.profile_memory == True and not self.walked_vmrss:
+                self.add_counter("vmRSS", [timestamp, memory * 1000])
+
+        self.walked_vmrss = True
+
 
 
     def walk_gc_samples(self, stats):
@@ -321,7 +328,6 @@ class Converter:
                    
 
             stackindex = thread.add_stack(frames, categories)
-            timestamp = i * sampletime
             if "start_time_offset" in stats.meta: 
                 timestamp = 1000 * stats.gc_profiles[i][1] - sampletime# timestamp field in new version  
             else:
@@ -330,8 +336,9 @@ class Converter:
             thread.add_sample(stackindex, timestamp)
             thread.add_allocation(stackindex, timestamp, sample_allocated_bytes)
             
-            if stats.profile_memory == True:
-                self.counters.append([timestamp, memory * 1000])
+            if stats.profile_memory == True and not self.walked_vmrss:
+                self.add_counter("vmRSS", [timestamp, memory * 1000])
+        self.walked_vmrss = True
 
     def get_next_sampled_object(self, stats):
         """ Iterate thorugh the obj info stacks and return next sampled obj with timestamp and previous timestamp """
@@ -351,7 +358,7 @@ class Converter:
             self.gc_stat_types.append(gc_stat)
             i += 1
             gc_stat = stats.getmeta("gc_stats__" + str(i), None)
-
+        
     def walk_gc_samples_w_obj_info(self, stats):
         # New function for gc_samples and obj info.
         # Idea: have one extra top frame that tells what kind of object triggerred the sample
@@ -361,9 +368,9 @@ class Converter:
         for obj_info_stack in stats.gc_obj_info:
             stack, timestamp = obj_info_stack
             obj_count += len(stack) - len(self.gc_stat_types)
-        
+
+        print( f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}")
         assert len(stats.gc_profiles) == obj_count, f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}"
-        #print( f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}")
 
         sampletime = self.get_sample_time(stats)# start 'timestamp' when sampling started
         sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
@@ -438,8 +445,10 @@ class Converter:
             thread.add_sample(stackindex, timestamp)
             thread.add_allocation(stackindex, timestamp, sample_allocated_bytes)
             
-            if stats.profile_memory == True:
-                self.counters.append([timestamp, memory * 1000])
+            #print(stats.profile_memory)
+            if stats.profile_memory == True and not self.walked_vmrss:
+                self.add_counter("vmRSS", [timestamp, memory * 1000])
+        self.walked_vmrss = True
 
     def create_gc_thread_minor_marker(self, stats):
         if not hasattr(stats, "gc_obj_info") or len(stats.gc_obj_info) == 0: return
@@ -457,6 +466,7 @@ class Converter:
                     data["gc_state"] = PYPY_GC_STATES[int(gc_stats[i])]  
                 elif self.gc_stat_types[i] in ("total_memory_used", "total_size_of_arenas", "VmRSS"):
                     data[self.gc_stat_types[i]] = str(gc_stats[i]) + "B"
+                    self.add_counter(self.gc_stat_types[i], [marker_time, gc_stats[i]])
 
             thread.add_marker(marker_time, marker_time + 0.02, st_id, data)
             _, new_gc_time, gc_stats = next(obj_info_getter, (None, None, None))
@@ -574,10 +584,7 @@ class Converter:
         processed_profile["meta"] = self.dump_vmprof_meta(stats)
         processed_profile["libs"] = self.dump_libs()
         processed_profile["pages"] = []
-        if(stats.profile_memory):
-            processed_profile["counters"] = [self.dump_counters()]
-        else:
-            processed_profile["counters"] = []
+        processed_profile["counters"] = self.dump_counters()
         processed_profile["threads"] = self.dump_threads()
         check_processed_profile(processed_profile)
         return json.dumps(processed_profile)
@@ -795,14 +802,24 @@ class Converter:
         return categories
 
     def dump_counters(self):
+        counters = []
+        for ctype in self.counters.keys():
+            #if ctype == "vmRSS":
+            #    counters.append(self.dump_vmrss_counter())    
+            if ctype in ("vmRSS", "total_memory_used", "total_size_of_arenas"):
+                color = "orange" if ctype == "vmRSS" else "red"
+                counters.append(self.dump_counter(ctype, ctype, color))  
+        return counters
+    
+    def dump_counter(self, ctype, descr, color="orange"):
         counter = {}
-        counter["name"] = "Memory"
+        counter["name"] = ctype
         counter["category"] = "Memory"
-        counter["description"] = "Amount of allocated memory"
-        #counter["color"] = "red"
+        counter["description"] = descr
+        counter["color"] = color
         counter["pid"] = "51580"
         counter["mainThreadIndex"] = 0
-        memory_in_alloc_form =  self.get_mem_allocations()
+        memory_in_alloc_form =  self.get_mem_allocations(ctype)
         counter["sampleGroups"] = [
             {
                 "id": 0,
@@ -814,12 +831,14 @@ class Converter:
             }
         ]
         return counter
-    
-    def get_mem_allocations(self):
+
+
+    def get_mem_allocations(self, ctype):
         # Firefox Profiler seems to need two non zero samples
-        mem_diff = [self.counters[0],self.counters[0]]
+        counter = self.counters[ctype]
+        mem_diff = [counter[0], counter[0]]
         current_mem = mem_diff[0][1]
-        for ctr in self.counters[1:len(self.counters) - 1 ]:
+        for ctr in counter[1:len(counter) - 1]:
             mem_diff.append([ctr[0], (current_mem - ctr[1])])
             current_mem = ctr[1]
         return mem_diff
