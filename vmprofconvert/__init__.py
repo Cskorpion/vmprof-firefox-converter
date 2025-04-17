@@ -326,7 +326,7 @@ class Converter:
 
         os   = stats.getmeta("os","default os")
         bits = stats.getmeta("bits","64")
-        osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac": "Macintosh"}# vmprof key for mac may be wrong
+        osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac os x": "Macintosh"}
         
         vmprof_meta["oscpu"] = f"{osdict[os]} {bits}bit"
         vmprof_meta["platform"] = osdict[os]
