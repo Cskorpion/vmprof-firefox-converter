@@ -154,6 +154,11 @@ if __name__ == "__main__":
                 jitlogpath = os.path.abspath(args.jitlog_file[0])
             if args.pypylog_file:
                 pypylogpath = os.path.abspath(args.pypylog_file[0])
+    else:
+        print("You must provide arguments")
+        print("Either convert some profile with: python -m vmprofconvert -convert some_file.prof ...")
+        print("Or run some code with: python -m vmprofconvert -run some_file.py <args>")
+        exit(0) 
             
     abspath = os.path.abspath(path)
 
