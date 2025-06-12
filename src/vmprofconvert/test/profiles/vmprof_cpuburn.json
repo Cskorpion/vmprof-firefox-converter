@@ -35,7 +35,7 @@
       },
       {
         "name": "JIT",
-        "color": "green",
+        "color": "purple",
         "subcategories": [
           "Other"
         ]
@@ -60,6 +60,20 @@
         "subcategories": [
           "Other"
         ]
+      },
+      {
+        "name": "Garbage Collection",
+        "color": "green",
+        "subcategories": [
+          "Other"
+        ]
+      },
+      {
+        "name": "Interpreter",
+        "color": "yellow",
+        "subcategories": [
+          "Other"
+        ]
       }
     ],
     "preprocessedProfileVersion": 47,
@@ -70,7 +84,28 @@
     {
       "name": "/home/christoph/Dokumente/Python/cpuburn.py",
       "path": "/home/christoph/Dokumente/Python/cpuburn.py",
-      "debugName": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "debugName": "test",
+      "debugPath": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "arch": ""
+    },
+    {
+      "name": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "path": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "debugName": "burn",
+      "debugPath": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "arch": ""
+    },
+    {
+      "name": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "path": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "debugName": "_iterate",
+      "debugPath": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "arch": ""
+    },
+    {
+      "name": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "path": "/home/christoph/Dokumente/Python/cpuburn.py",
+      "debugName": "_next_rand",
       "debugPath": "/home/christoph/Dokumente/Python/cpuburn.py",
       "arch": ""
     }
@@ -11213,14 +11248,19 @@
       "pid": "51580",
       "markers": {
         "data": [],
+        "name": [],
+        "startTime": [],
+        "endTime": [],
+        "phase": [],
+        "category": [],
         "length": 0
       },
       "nativeSymbols": {
         "libIndex": [
           0,
-          0,
-          0,
-          0
+          1,
+          2,
+          3
         ],
         "address": [
           -1,
@@ -11326,44 +11366,44 @@
           0
         ],
         "category": [
+          2,
           0,
           0,
           0,
           0,
+          2,
+          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
           0,
           0,
+          2,
+          2,
+          2,
+          2,
           0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
           0
         ],
         "subcategory": [
@@ -11489,6 +11529,47 @@
           0,
           0
         ],
+        "implementation": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
         "nativeSymbol": [
           -1,
           0,
@@ -11576,6 +11657,26 @@
       "funcTable": {
         "isJS": [
           false,
+          true,
+          true,
+          true,
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          true,
+          true,
+          false,
+          false,
+          false,
+          false,
+          true,
           false,
           false,
           false,
@@ -11593,27 +11694,7 @@
           false,
           false,
           false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false,
-          false
+          true
         ],
         "relevantForJS": [
           false,
@@ -11866,9 +11947,9 @@
       "resourceTable": {
         "lib": [
           0,
-          0,
-          0,
-          0
+          1,
+          2,
+          3
         ],
         "name": [
           2,

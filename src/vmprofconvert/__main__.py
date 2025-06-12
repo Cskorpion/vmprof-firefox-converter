@@ -9,7 +9,7 @@ import time
 import atexit
 from zipfile import ZipFile
 from vmprofconvert import convert_stats_with_pypylog
-from symbolserver import start_server 
+from symbolserver import start_server
 
 def run_vmprof(path, argv, native, lines):
     profpath = path.replace(".py", ".prof")
@@ -20,7 +20,7 @@ def run_vmprof(path, argv, native, lines):
     env = os.environ.copy()
 
     jitlogpath = None
-    pypylogpath = None 
+    pypylogpath = None
     if impl == "PyPy":
         args += " --jitlog"
         jitlogpath = profpath + ".jit"
@@ -33,19 +33,19 @@ def run_vmprof(path, argv, native, lines):
             args += " --mem"
     if not native:
         args += " --no-native"
-            
+
     cmd_args = ""
     if len(argv) > 0:
         for arg in argv:
             cmd_args += " " + arg
-    
+
     start_time = time.time()
-    
+
     command = sys.executable + " -m vmprof" + args + " " + path + cmd_args
     subprocess.run(command, shell=True, env=env)
 
     end_time = time.time()
-    
+
     return (profpath, jitlogpath, pypylogpath, (start_time, end_time))
 
 def write_file_dict(file_dict, sharezip):
@@ -90,7 +90,7 @@ def extract_files(zip_dict, zip_path, folder):
             filename = zip_dict[path]
             new_file_paths[path] = inputzip.extract(filename, folder)
     return new_file_paths
-            
+
 def cleanup(folder, path_dict):
     path_dict["json"] = path_dict["prof"] + ".json"# json is created, not loaded
     for path in path_dict:
@@ -109,7 +109,8 @@ def get_paths(path_dict):
         pypylogpath = path_dict["pypylog"]
     return path, jitlogpath, pypylogpath
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(prog="vmprof-firefox-converter", description="convert vmprof profiles or run vmprof directly")
     parser.add_argument("-convert", metavar = "convert_file", dest = "convert_file", nargs = 1, help = "convert vmprof profile or zip")
     parser.add_argument("-jitlog", metavar = "jitlog_file", dest = "jitlog_file", nargs = 1, help = "use jitlog data")
@@ -158,8 +159,8 @@ if __name__ == "__main__":
         print("You must provide arguments")
         print("Either convert some profile with: python -m vmprofconvert -convert some_file.prof ...")
         print("Or run some code with: python -m vmprofconvert -run some_file.py <args>")
-        exit(0) 
-            
+        exit(0)
+
     abspath = os.path.abspath(path)
 
     url = "https://profiler.firefox.com/from-url/http%3A%2F%2F127.0.0.1%3A5000%2Fprofile"
@@ -181,3 +182,7 @@ if __name__ == "__main__":
     if args.browser:
         webbrowser.open(url, new=0, autoraise=True)
         start_server(abspath + ".json", jitlogpath, path_dict)
+
+
+if __name__ == "__main__":
+    main()

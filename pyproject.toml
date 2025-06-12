@@ -1,0 +1,29 @@
+[project]
+name = "vmprof-firefox-converter"
+version = "0.1.0"
+description = "Firefox-Profiler as UI for VMProf"
+authors = [
+    {name = "Christoph Jung"},
+]
+dependencies = [
+    "vmprof",
+    "flask",
+    "flask-cors",
+]
+requires-python = "<3.12,>=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+
+[dependency-groups]
+test = ["pytest"]
+
+[project.scripts]
+vmprofconvert = "vmprofconvert.__main__:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+package-dir = "src"
