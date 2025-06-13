@@ -1,4 +1,0 @@
-vmprof
-pytest
-flask
-flask_cors
