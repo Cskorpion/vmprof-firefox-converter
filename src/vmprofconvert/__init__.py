@@ -452,7 +452,7 @@ class Converter:
         mem_diff = [self.counters[0],self.counters[0]]
         current_mem = mem_diff[0][1]
         for ctr in self.counters[1:len(self.counters) - 1 ]:
-            mem_diff.append([ctr[0], (current_mem - ctr[1])])
+            mem_diff.append([ctr[0], (ctr[1] - current_mem)])
             current_mem = ctr[1]
         return mem_diff
 
