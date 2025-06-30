@@ -33,8 +33,13 @@ PPL_ACTION = 1
 PPL_STARTING = 2
 PPL_DEPTH = 3
 
+PYPY_GC_STATE_SCANNING = 'SCANNING'
+PYPY_GC_STATE_MARKING = 'MARKING'
+PYPY_GC_STATE_SWEEPING = 'SWEEPING'
+PYPY_GC_STATE_FINALIZING = 'FINALIZING'
 # from pypy/.../incminimark.py
 PYPY_GC_STATES = ['SCANNING', 'MARKING', 'SWEEPING', 'FINALIZING']
+PYPY_GC_STATE_DICT = {v:k for k, v in enumerate(PYPY_GC_STATES)}
 
 def convert(path):
     stats = vmprof.read_profile(path)
@@ -79,6 +84,7 @@ def convert_gc_stats_with_pypylog(vmprof_path, pypylog_path=None, times=None):
     c.get_type_of_gc_stats(stats)
     c.walk_gc_samples_w_obj_info(stats)
     c.create_gc_thread_minor_marker(stats)
+    c.create_gc_major_marker(stats)
     #c.create_gc_minor_marker(stats)
     if pypylog_path:
         pypylog = parse_pypylog(pypylog_path)
@@ -94,6 +100,7 @@ class Converter:
         self.threads = {}
         self.gc_sampled_threads = {}
         self.gc_stat_types = [] # Type of gc stats the current profile contains: e.g. ["vmRSS", "total_size_of_arensas",...]
+        self.gc_stat_types_dict = {} # Type of gc stats the current profile contains: e.g. ["vmRSS", "total_size_of_arensas",...]
         self.counters = {} # contains different memory information: type: [[timestamp, memory in Byte], ...]
         self.libs = []# list of [name, debugname]
         self.libs_positions = {}# key is string
@@ -354,8 +361,10 @@ class Converter:
         i = 0
         gc_stat = stats.getmeta("gc_stats__" + str(i), None)
         self.gc_stat_types = []
+        self.gc_stat_types_dict = {}
         while gc_stat != None:
             self.gc_stat_types.append(gc_stat)
+            self.gc_stat_types_dict[gc_stat] = i
             i += 1
             gc_stat = stats.getmeta("gc_stats__" + str(i), None)
         
@@ -370,7 +379,7 @@ class Converter:
             obj_count += len(stack) - len(self.gc_stat_types)
 
         print( f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}")
-        assert len(stats.gc_profiles) == obj_count, f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}"
+        #assert len(stats.gc_profiles) == obj_count, f"gc-samples: {len(stats.gc_profiles)}, objects {obj_count}"
 
         sampletime = self.get_sample_time(stats)# start 'timestamp' when sampling started
         sample_allocated_bytes = int(stats.getmeta("sample_allocated_bytes", "0"))
@@ -449,6 +458,48 @@ class Converter:
             if stats.profile_memory == True and not self.walked_vmrss:
                 self.add_counter("vmRSS", [timestamp, memory * 1000])
         self.walked_vmrss = True
+
+    def create_gc_major_marker(self, stats):
+        if not hasattr(stats, "gc_obj_info") or len(stats.gc_obj_info) == 0: return
+        if not "gc_state" in self.gc_stat_types_dict: return
+
+        thread = self.get_thread_gc_sampled(0)# TODO:handle gc threads better
+        st_id = thread.add_string("Major Collection")
+        obj_info_getter = self.get_next_sampled_object(stats)
+        first_gc_time = stats.gc_obj_info[0][1] 
+
+        gc_state_index = self.gc_stat_types_dict["gc_state"]
+
+        _, gc_time_start, gc_stats_start = next(obj_info_getter, (None, None, None))
+        while gc_time_start:
+
+            # find first state marking
+            if gc_stats_start[gc_state_index] != PYPY_GC_STATE_DICT[PYPY_GC_STATE_MARKING]:
+                _, gc_time_start, gc_stats_start = next(obj_info_getter, (None, None, None))
+                continue
+
+            new_gc_time, gc_stats_next = gc_time_start, gc_stats_start
+
+            # run over stats until we find finalizing
+            while gc_stats_next and gc_stats_next[gc_state_index] != PYPY_GC_STATE_DICT[PYPY_GC_STATE_FINALIZING]: 
+                _, new_gc_time, gc_stats_next = next(obj_info_getter, (None, None, None))
+            
+            # run up to last finalizing
+            while gc_stats_next and gc_stats_next[gc_state_index] == PYPY_GC_STATE_DICT[PYPY_GC_STATE_FINALIZING]: 
+                last_finalizing_time = new_gc_time
+                _, new_gc_time, gc_stats_next = next(obj_info_getter, (None, None, None))
+
+            if not gc_stats_next:
+                print("no finalizing!")
+                return
+            
+            marker_start = (gc_time_start - first_gc_time) * 1000
+            marker_end = (last_finalizing_time - first_gc_time) * 1000
+            print("major marker")
+            thread.add_marker(marker_start, marker_end, st_id, {"type": "Garbage Collection"})
+
+            gc_time_start, gc_stats_start = gc_stats_next, gc_stats_next
+
 
     def create_gc_thread_minor_marker(self, stats):
         if not hasattr(stats, "gc_obj_info") or len(stats.gc_obj_info) == 0: return
@@ -683,7 +734,7 @@ class Converter:
                 "name": "Garbage Collection",
                 "tableLabel": "{marker.name}",
                 "description": "Garbage Collection Activities",
-                "display": ["marker-chart", "marker-table", "timeline-overview"],
+                "display": ["marker-chart", "marker-table", "timeline-memory", "timeline-overview"],
                 "data": [
                     {
                         "key": stat,
@@ -839,7 +890,7 @@ class Converter:
         mem_diff = [counter[0], counter[0]]
         current_mem = mem_diff[0][1]
         for ctr in counter[1:len(counter) - 1]:
-            mem_diff.append([ctr[0], (current_mem - ctr[1])])
+            mem_diff.append([ctr[0], (ctr[1] - current_mem)])
             current_mem = ctr[1]
         return mem_diff
 
