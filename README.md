@@ -25,6 +25,7 @@ optional arguments:
 `--nolines` disable line profiling (only for running vmprof)
 
 <img src="images/firefox.png">
+<img src="https://github.com/Cskorpion/vmprof-firefox-converter/blob/main/images/firefox.png?raw=true">
 
 cpuburn code can be found
 [here](https://github.com/vmprof/vmprof-python/blob/master/vmprof/test/cpuburn.py)
