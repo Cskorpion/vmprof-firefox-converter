@@ -1,5 +1,9 @@
 # vmprof-firefox-converter
 
+Install the converter with pip:
+
+`python -m pip install vmprof-firefox-converter`
+
 View vmprof profiles in Firefox Profiler by converting them:
 
 `python -m vmprofconvert -convert profile.prof`
