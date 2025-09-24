@@ -648,6 +648,7 @@ class Thread:
         ftable["implementation"] = [None for frame in self.frametable]
         ftable["nativeSymbol"] = [frame[1] for frame in self.frametable]
         ftable["line"] = self.get_frametable_lines()
+        ftable["column"] = [None for _ in self.frametable]
         ftable["length"] = len(self.frametable)
         return ftable
     
