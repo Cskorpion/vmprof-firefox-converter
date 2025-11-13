@@ -5,7 +5,7 @@ import json
 import os
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
-from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
+from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog
 
 CATEGORY_PYTHON = 0
 CATEGORY_MEMORY = 1
@@ -46,7 +46,7 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
     c = Converter()
     stats = vmprof.read_profile(vmprof_path)
     c.walk_samples(stats)
-    if pypylog_path  :
+    if pypylog_path:
         pypylog = parse_pypylog(pypylog_path)
         if times is not None:
             total_runtime_micros = (times[1] - times[0]) * 1000000
@@ -91,14 +91,11 @@ class Converter:
         lowest_tid = min(list(self.threads.keys())) - 1
         return lowest_tid
 
-    def walk_pypylog(self, pypylog):
+    def walk_pypylog(self, pypylog: list):
         tid = self.get_unused_tid()
-        plthread = None
-        if tid not in self.threads:
-            plthread = self.threads[tid] = Thread()
-            plthread.name = "PyPyLog"
-            plthread.tid = tid
-        if plthread and pypylog:
+        assert tid not in self.threads
+        plthread = self.threads[tid] = Thread(tid, "PyPyLog")
+        if pypylog:
             ppl_stack = []
             last_log = None
             last_close_time = -1
@@ -167,12 +164,9 @@ class Converter:
             frames = []
             categories = []
             stack_info, _, tid, memory = sample
-            if tid in self.threads:
-                thread = self.threads[tid]
-            else:
-                thread = self.threads[tid] = Thread()
-                thread.tid = tid
-                thread.name = "Thread " + str(len(self.threads) - 1)# Threads seem to need different names
+            if (thread := self.threads.get(tid)) is None:
+                thread = self.threads[tid] = Thread(tid, f"Thread {len(self.threads)}")
+
             if stats.profile_lines:
                 indexes = range(0, len(stack_info), 2)
             else:
@@ -458,9 +452,11 @@ class Converter:
 
 
 class Thread:
-    def __init__(self):
-        self.stringarray = []
-        self.stringarray_positions = {}
+    def __init__(self, tid: int = 0, name: str = "Main Thread"):
+        self.tid = tid
+        self.name = name
+        self.stringarray: list[str] = []
+        self.stringarray_positions: dict[str, int] = {}
         self.stacktable = []# list of [frameindex, stacktableindex_or_None, category] cat{0 = py, 1 = mem, 2 = native, 3 = jit, 4 = asm, 5 =  jit_inline, 6 = mixed}
         self.stacktable_positions = {}
         self.functable = []# list of [stringtable_index, stringtable_index, int, resource_index] funcname, filename, line  line == -1 if profile_lines == False, resource_index
@@ -475,7 +471,7 @@ class Thread:
         self.markers = []# list of [startime, endtime, stringindex]
 
     def create_pypylog_marker(self, pypylog):
-        interperter_string_id = self.add_string("interpreter")
+        interpreter_string_id = self.add_string("interpreter")
         for i in range(int(len(pypylog)/2)):
             start_log = pypylog[2*i]
             stop_log = pypylog[2*i+1]
@@ -488,7 +484,7 @@ class Thread:
                 next_log = pypylog[2 * i + 2]
                 next_logtime_start = next_log[0]
                 if abs(endtime - next_logtime_start) > 2:
-                    self.add_marker(endtime + 1, next_logtime_start - 1, interperter_string_id)
+                    self.add_marker(endtime + 1, next_logtime_start - 1, interpreter_string_id)
 
     def create_single_pypylog_marker(self, start_log, stop_log):
         starttime = start_log[PPL_TIME]
@@ -504,14 +500,12 @@ class Thread:
     def add_marker(self, starttime, endtime, stringtable_index):
         self.markers.append([starttime, endtime, stringtable_index])
 
-    def add_string(self, string):
-        if string in self.stringarray_positions:
-            return self.stringarray_positions[string]
-        else:
-            result = len(self.stringarray)
+    def add_string(self, string: object) -> int:
+        string = str(string)
+        nidx = len(self.stringarray)
+        if (idx := self.stringarray_positions.setdefault(string, nidx)) == nidx:
             self.stringarray.append(string)
-            self.stringarray_positions[string] = result
-            return result
+        return idx
 
     def add_stack(self, stack, categories):
         #stack is a list of frametable indexes
@@ -691,23 +685,18 @@ class Thread:
         return samples
 
     def dump_stringarray(self):
-        return [str(string) for string in self.stringarray]
+        return self.stringarray[:]
 
     def get_processed_filelines(self):
         linenumbers = []
         filenames = []
-        for func in self.functable:
-            if self.stringarray[func[1]] == "-":
-                linenumbers.append(None)
-            elif func[2] == -1:
-                linenumbers.append(None)
-            else:
-                linenumbers.append(int(func[2]))
-
-        for func in self.functable:
-            if self.stringarray[func[1]] == "-":
+        dash_index = self.stringarray_positions.get("-", -1)
+        for _, filename_index, line, *_ in self.functable:
+            if filename_index == dash_index:
                 filenames.append(None)
+                linenumbers.append(None)
             else:
-                filenames.append(func[1])
+                filenames.append(filename_index)
+                linenumbers.append(None if line == -1 else int(line))
 
         return linenumbers, filenames
