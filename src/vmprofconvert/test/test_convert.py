@@ -63,7 +63,7 @@ def test_frametable():
     assert frameindex0 == frameindex1 == 0
     frameindex2 = t.add_frame("goose", -1, "dummyfile.py", CATEGORY_PYTHON, -1, -1)
     assert frameindex2 == frameindex1 + 1
-    assert t.frametable == [[0, -1, -1, 0],[1, -1, -1, 0]]
+    assert t.frametable == [(0, -1, -1, 0),(1, -1, -1, 0)]
     assert t.stringarray == ["duck", "dummyfile.py" , "goose"]
 
 def test_functable():
@@ -108,7 +108,7 @@ def test_walksamples():
     c.walk_samples(stats)
     t = c.threads[12345] # info now stored in thread inside Converter
     assert t.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
-    assert t.frametable == [[0, 0, 7, 0], [1, 1, 17, 0], [2, 2, 117, 0]]# stringtableindex, nativesymbol_index, line, category
+    assert t.frametable == [(0, 0, 7, 0), (1, 1, 17, 0), (2, 2, 117, 0)]# stringtableindex, nativesymbol_index, line, category
     assert t.stacktable == [[0, None, CATEGORY_PYTHON], [1, 0, CATEGORY_PYTHON], [2, 0, CATEGORY_PYTHON]]
     assert t.samples == [[1, 0.0], [2, 5000.0]]# stackindex time dummyeventdelay = 7
 
@@ -322,7 +322,7 @@ def test_add_native_frame():
     thread = Thread()
     stack_info = "native_function"
     c.add_native_frame(thread, stack_info)
-    assert thread.frametable == [[0, -1, -1, 2]]
+    assert thread.frametable == [(0, -1, -1, 2)]
     assert thread.functable == [[0, 1, -1, -1, False]]
     assert thread.stringarray == [stack_info, ""]
 
@@ -362,7 +362,7 @@ def test_add_vmprof_frame():
     profile_lines = True
     c.add_vmprof_frame(addr_info_py, thread, stack_info, profile_lines, CATEGORY_PYTHON, 0)
     c.add_vmprof_frame(addr_info_n, thread, stack_info, profile_lines, CATEGORY_NATIVE, 2)
-    assert thread.frametable == [[0, 0, 7, 0], [1, 1, 0, 2]]
+    assert thread.frametable == [(0, 0, 7, 0), (1, 1, 0, 2)]
     assert thread.functable == [[0, 1, 7, 0, True], [2, 1, 0, 1, False]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b"]
 
@@ -796,7 +796,7 @@ def test_categories_in_frametable():
 
     c.add_jit_frame(thread, categories, addr_info_jit, frames)
 
-    assert thread.frametable == [[0, 0, 7, CATEGORY_PYTHON], [1, 1, 0, CATEGORY_NATIVE], [2, 2, 0, CATEGORY_JIT]] # categories now also in frametable
+    assert thread.frametable == [(0, 0, 7, CATEGORY_PYTHON), (1, 1, 0, CATEGORY_NATIVE), (2, 2, 0, CATEGORY_JIT)] # categories now also in frametable
     assert thread.functable == [[0, 1, 7, 0, True], [2, 1, 0, 1, False], [3, 1, 0, 2, True]]
     assert thread.stringarray == ["function_a", "dummyfile.py", "function_b", "function_c"]
 

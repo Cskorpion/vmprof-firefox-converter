@@ -465,8 +465,8 @@ class Thread:
         self.stacktable_positions = {}
         self.functable = []# list of [stringtable_index, stringtable_index, int, resource_index] funcname, filename, line  line == -1 if profile_lines == False, resource_index
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index, nativesymbol_index, line]   
-        self.frametable_positions = {}# key is string
+        self.frametable: list[tuple[int, int, int, int]] = []# list of [functable_index, nativesymbol_index, line, category]
+        self.frametable_positions: dict[tuple[str, str, int, int], int] = {}# key is (funcname, file, line, category)
         self.samples = []# list of [stackindex, time in ms], no need for sample_positions
         self.nativesymbols = []# list of [libindex, stringindex, addr]
         self.nativesymbols_positions = {}# key is (libindex, string)
@@ -545,19 +545,16 @@ class Thread:
             self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index, is_python])
             self.funtable_positions[key] = result
             return result
-            
-    def add_frame(self, funcname, line, file, category, libindex, addr):
-        key = (funcname, line, category)
-        if key in self.frametable_positions:
-            return self.frametable_positions[key]
-        else:
+
+    def add_frame(self, funcname: str, line: int, file: str, category, libindex, addr) -> int:
+        nidx = len(self.frametable_positions)
+        idx = self.frametable_positions.setdefault((funcname, file, line, category), nidx)
+        if idx == nidx:
             functable_index = self.add_func(funcname, file, line, category, libindex)
-            frametable_index = len(self.frametable)
             nativesymbol_index = self.add_nativesymbol(libindex, funcname, addr)
-            self.frametable.append([functable_index, nativesymbol_index, line, category])
-            self.frametable_positions[key] = frametable_index
-            return frametable_index
-        
+            self.frametable.append((functable_index, nativesymbol_index, line, category))
+        return idx
+
     def add_sample(self, stackindex, time):
         self.samples.append([stackindex, time]) # stackindex, ms since starttime
 
