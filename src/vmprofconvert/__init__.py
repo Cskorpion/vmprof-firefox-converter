@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import vmprof
 import json
 import os
 from vmprof.reader import AssemblerCode, JittedCode
 from vmprofconvert.processedformat import check_processed_profile
-from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog, filter_top_level_logs
+from vmprofconvert.pypylog import parse_pypylog, cut_pypylog, rescale_pypylog
 
 CATEGORY_PYTHON = 0
 CATEGORY_MEMORY = 1
@@ -25,7 +27,7 @@ def convert(path):
     c = Converter()
     c.walk_samples(stats)
     return c# return converter instance for testing
-    
+
 def convert_vmprof(path):
     c = Converter()
     stats = vmprof.read_profile(path)
@@ -44,7 +46,7 @@ def convert_stats_with_pypylog(vmprof_path, pypylog_path, times):
     c = Converter()
     stats = vmprof.read_profile(vmprof_path)
     c.walk_samples(stats)
-    if pypylog_path  :
+    if pypylog_path:
         pypylog = parse_pypylog(pypylog_path)
         if times is not None:
             total_runtime_micros = (times[1] - times[0]) * 1000000
@@ -59,7 +61,7 @@ class Converter:
         self.counters = []
         self.libs = []# list of [name, debugname]
         self.libs_positions = {}# key is string
-    
+
     def add_lib(self, name, debugname):
         if name == "-":
             return -1
@@ -71,7 +73,7 @@ class Converter:
             self.libs.append([name, debugname])
             self.libs_positions[key] = libs_index
             return libs_index
-        
+
     def create_path_dict(self):
         path_dict = {}
         for lib in self.libs:
@@ -79,7 +81,7 @@ class Converter:
             if os.path.exists(name):
                 path_dict[name] = os.path.abspath(name)
         return path_dict
-    
+
     def create_pypylog_marker(self, pypylog, tid):
         self.threads[tid].create_pypylog_marker(pypylog)
 
@@ -88,19 +90,16 @@ class Converter:
             return 7
         lowest_tid = min(list(self.threads.keys())) - 1
         return lowest_tid
-    
-    def walk_pypylog(self, pypylog):
+
+    def walk_pypylog(self, pypylog: list):
         tid = self.get_unused_tid()
-        plthread = None
-        if tid not in self.threads:
-            plthread = self.threads[tid] = Thread()
-            plthread.name = "PyPyLog"
-            plthread.tid = tid
-        if plthread and pypylog:
+        assert tid not in self.threads
+        plthread = self.threads[tid] = Thread(tid, "PyPyLog")
+        if pypylog:
             ppl_stack = []
             last_log = None
             last_close_time = -1
-            mdiff = pypylog[1][PPL_TIME] - pypylog[0][PPL_TIME]# minimal time interval to squeeze an interpreter sample in between 
+            mdiff = pypylog[1][PPL_TIME] - pypylog[0][PPL_TIME]# minimal time interval to squeeze an interpreter sample in between
             for i in range(len(pypylog)):
                 log = pypylog[i]
                 if log[PPL_STARTING]:
@@ -117,8 +116,8 @@ class Converter:
                     ppl_stack.pop()
                     ppl_stack.pop()
                 last_log = log
-            
-    def add_pypylog_sample_from_stack(self, thread, stack_list):
+
+    def add_pypylog_sample_from_stack(self, thread: Thread, stack_list):
         frames = []
         categories = []
         for log in stack_list[:-1]:# last frame is double (open + closed)
@@ -131,25 +130,26 @@ class Converter:
         start_time = stack_list[-2][PPL_TIME]
         end_time =  stack_list[-1][PPL_TIME]
         thread.add_sample(stackindex, start_time)
-        thread.add_sample(stackindex, end_time) 
+        thread.add_sample(stackindex, end_time)
 
-    def add_pypylog_sample(self, thread, logname, logtime_start, logtime_end):
+    def add_pypylog_sample(self, thread: Thread, logname, logtime_start, logtime_end):
         if "gc" in logname:
             category = CATEGORY_GC
-        elif "jit" in logname:
+        else:
+            assert "jit" in logname
             category = CATEGORY_JIT
         frameindex = thread.add_frame(logname, -1, "", category, -1, -1)
         stackindex = thread.add_stack([frameindex], [category])
         thread.add_sample(stackindex, logtime_start)
         thread.add_sample(stackindex, logtime_end)
 
-    def add_pypylog_interp_sample(self, thread, logtime_start, logtime_end):
+    def add_pypylog_interp_sample(self, thread: Thread, logtime_start, logtime_end):
         frameindex = thread.add_frame("interp", -1, "", CATEGORY_INTERPRETER, -1, -1)
         stackindex = thread.add_stack([frameindex], [CATEGORY_INTERPRETER])
         thread.add_sample(stackindex, logtime_start)
         thread.add_sample(stackindex, logtime_end)
 
-    
+
     def walk_samples(self, stats):
         sampletime = stats.end_time.timestamp() * 1000 - stats.start_time.timestamp() * 1000
         sampletime /= len(stats.profiles)
@@ -164,12 +164,9 @@ class Converter:
             frames = []
             categories = []
             stack_info, _, tid, memory = sample
-            if tid in self.threads:
-                thread = self.threads[tid]
-            else:
-                thread = self.threads[tid] = Thread() 
-                thread.tid = tid
-                thread.name = "Thread " + str(len(self.threads) - 1)# Threads seem to need different names
+            if (thread := self.threads.get(tid)) is None:
+                thread = self.threads[tid] = Thread(tid, f"Thread {len(self.threads)}")
+
             if stats.profile_lines:
                 indexes = range(0, len(stack_info), 2)
             else:
@@ -177,7 +174,7 @@ class Converter:
 
             for j in indexes:
                 addr_info = stats.get_addr_info(stack_info[j])
-                #remove jit frames # quick fix 
+                #remove jit frames # quick fix
                 if len(categories) != 0:
                     if not isinstance(stack_info[j], AssemblerCode) and categories[-1] == CATEGORY_JIT:
                         frames.pop()
@@ -189,20 +186,20 @@ class Converter:
                 elif addr_info is None: # Class NativeCode isnt used
                     #pass
                     categories.append(CATEGORY_NATIVE)
-                    frames.append(self.add_native_frame(thread, stack_info[j]))                   
-                elif isinstance(stack_info[j], int): 
-                    categories.append(category_dict[addr_info[0]])  
+                    frames.append(self.add_native_frame(thread, stack_info[j]))
+                elif isinstance(stack_info[j], int):
+                    categories.append(category_dict[addr_info[0]])
                     frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categories[-1], j))
-                   
+
             stackindex = thread.add_stack(frames, categories)
             timestamp = i * sampletime
-            if "start_time_offset" in stats.meta: 
-                timestamp = 1000 * stats.profiles[i][1] - sampletime# timestamp field in new version  
+            if "start_time_offset" in stats.meta:
+                timestamp = 1000 * stats.profiles[i][1] - sampletime# timestamp field in new version
             thread.add_sample(stackindex, timestamp)
-            if stats.profile_memory == True:
+            if stats.profile_memory:
                 self.counters.append([timestamp, memory * 1000])
 
-    def add_vmprof_frame(self, addr_info, thread, stack_info, lineprof, category, j):# native or python frame
+    def add_vmprof_frame(self, addr_info, thread: Thread, stack_info, lineprof, category, j):# native or python frame
         funcname = addr_info[1]
         funcline = addr_info[2]
         filename = addr_info[3]
@@ -212,11 +209,11 @@ class Converter:
         else:
             return thread.add_frame(funcname, funcline, filename, category, lib_index, -1)
 
-    def add_jit_frame(self, thread, categories, addr_info, frames):
+    def add_jit_frame(self, thread: Thread, categories, addr_info, frames):
         funcname = addr_info[1]
         filename = addr_info[3]
-        last_funcname, last_filename = self.get_last_func_file(thread, frames) 
-        
+        last_funcname, last_filename = self.get_last_func_file(thread, frames)
+
         if len(categories) > 0 and categories[-1] == 0 and last_filename == filename and last_funcname == funcname:# if last frame is py and current is jit and both have the same function => replace with mixed frame
             frames.pop()
             categories.pop()
@@ -229,12 +226,12 @@ class Converter:
         else:
             return thread.add_frame(funcname, -1, filename, categories[-1], -1, -1)
 
-    def add_native_frame(self, thread, stack_info):
+    def add_native_frame(self, thread: Thread, stack_info):
         funcname = stack_info
         filename = ""
         frameindex = thread.add_frame(funcname, -1, filename, CATEGORY_NATIVE, -1, -1)
         return frameindex
-    
+
     def check_asm_frame(self, categories, stack_info, thread, last_frame):
         if len(categories) > 0 and categories[-1] == 3:# if last frame is jit and current is asm => replace with inline jit frame
             categories.pop()
@@ -265,7 +262,7 @@ class Converter:
         processed_profile["threads"] = self.dump_threads()
         check_processed_profile(processed_profile)
         return json.dumps(processed_profile)
-    
+
     def dumps_vmprof(self, stats):
         processed_profile = {}
         processed_profile["meta"] = self.dump_vmprof_meta(stats)
@@ -278,25 +275,22 @@ class Converter:
         processed_profile["threads"] = self.dump_threads()
         check_processed_profile(processed_profile)
         return json.dumps(processed_profile)
-    
+
     def dump_libs(self):
-        liblist = []
-        for lib in self.libs:
-            name, debugname = lib
-            liblist.append(
-                {
-                    "name": name,
-                    "path": name,
-                    "debugName": debugname,
-                    "debugPath": name,
-                    "arch": ""
-                }
-            )
-        return liblist
-    
+        return [
+            {
+                "name": name,
+                "path": name,
+                "debugName": debugname,
+                "debugPath": name,
+                "arch": ""
+            }
+            for name, debugname in self.libs
+        ]
+
     def dump_threads(self):
-        return [thread.dump_thread()for thread in list(self.threads.values())] 
-    
+        return [thread.dump_thread()for thread in list(self.threads.values())]
+
     def dump_static_meta(self):
         static_meta = {}
         static_meta["interval"] = 0.4
@@ -318,7 +312,7 @@ class Converter:
     def dump_vmprof_meta(self, stats):
         vmprof_meta = {}
         ms_for_sample = int(stats.get_runtime_in_microseconds() / len(stats.profiles))
-        
+
         vmprof_meta["interval"] = ms_for_sample * 0.000001# seconds
         vmprof_meta["startTime"] = stats.start_time.timestamp() * 1000
         vmprof_meta["shutdownTime"] = stats.end_time.timestamp() * 1000
@@ -327,7 +321,7 @@ class Converter:
         os   = stats.getmeta("os","default os")
         bits = stats.getmeta("bits","64")
         osdict = {"linux": "x11", "win64": "Windows", "win32": "Windows", "mac os x": "Macintosh"}
-        
+
         vmprof_meta["oscpu"] = f"{osdict[os]} {bits}bit"
         vmprof_meta["platform"] = osdict[os]
         vmprof_meta["processType"] = 0
@@ -339,9 +333,9 @@ class Converter:
         vmprof_meta["preprocessedProfileVersion"] = 47
         vmprof_meta["symbolicated"] = True
         vmprof_meta["markerSchema"] = []
-        
+
         return vmprof_meta
-    
+
     def dump_categories(self):
         categories = []
         categories.append(
@@ -361,7 +355,7 @@ class Converter:
                     "Other"
                 ]
             }
-        )    
+        )
         categories.append(
             {
                 "name": "Native",
@@ -370,7 +364,7 @@ class Converter:
                     "Other"
                 ]
             }
-        )    
+        )
         categories.append(
             {
                 "name": "JIT",
@@ -379,7 +373,7 @@ class Converter:
                     "Other"
                 ]
             }
-        )    
+        )
         categories.append(
             {
                 "name": "ASM",
@@ -397,7 +391,7 @@ class Converter:
                     "Other"
                 ]
             }
-        )   
+        )
         categories.append(
             {
                 "name": "Mixed",
@@ -426,7 +420,7 @@ class Converter:
             }
         )
         return categories
-           
+
     def dump_counters(self):
         counter = {}
         counter["name"] = "Memory"
@@ -446,7 +440,7 @@ class Converter:
             }
         ]
         return counter
-    
+
     def get_mem_allocations(self):
         # Firefox Profiler seems to need two non zero samples
         mem_diff = [self.counters[0],self.counters[0]]
@@ -458,15 +452,17 @@ class Converter:
 
 
 class Thread:
-    def __init__(self):
-        self.stringarray = []
-        self.stringarray_positions = {}
+    def __init__(self, tid: int = 0, name: str = "Main Thread"):
+        self.tid = tid
+        self.name = name
+        self.stringarray: list[str] = []
+        self.stringarray_positions: dict[str, int] = {}
         self.stacktable = []# list of [frameindex, stacktableindex_or_None, category] cat{0 = py, 1 = mem, 2 = native, 3 = jit, 4 = asm, 5 =  jit_inline, 6 = mixed}
         self.stacktable_positions = {}
         self.functable = []# list of [stringtable_index, stringtable_index, int, resource_index] funcname, filename, line  line == -1 if profile_lines == False, resource_index
         self.funtable_positions = {}
-        self.frametable = []# list of [functable_index, nativesymbol_index, line]   
-        self.frametable_positions = {}# key is string
+        self.frametable: list[tuple[int, int, int, int]] = []# list of [functable_index, nativesymbol_index, line, category]
+        self.frametable_positions: dict[tuple[str, str, int, int], int] = {}# key is (funcname, file, line, category)
         self.samples = []# list of [stackindex, time in ms], no need for sample_positions
         self.nativesymbols = []# list of [libindex, stringindex, addr]
         self.nativesymbols_positions = {}# key is (libindex, string)
@@ -475,7 +471,7 @@ class Thread:
         self.markers = []# list of [startime, endtime, stringindex]
 
     def create_pypylog_marker(self, pypylog):
-        interperter_string_id = self.add_string("interpreter")
+        interpreter_string_id = self.add_string("interpreter")
         for i in range(int(len(pypylog)/2)):
             start_log = pypylog[2*i]
             stop_log = pypylog[2*i+1]
@@ -488,7 +484,7 @@ class Thread:
                 next_log = pypylog[2 * i + 2]
                 next_logtime_start = next_log[0]
                 if abs(endtime - next_logtime_start) > 2:
-                    self.add_marker(endtime + 1, next_logtime_start - 1, interperter_string_id)
+                    self.add_marker(endtime + 1, next_logtime_start - 1, interpreter_string_id)
 
     def create_single_pypylog_marker(self, start_log, stop_log):
         starttime = start_log[PPL_TIME]
@@ -500,19 +496,17 @@ class Thread:
     def create_single_pypylog_interpreter_marker(self, starttime, endtime):
         st_id = self.add_string("interpreter")## move out
         self.add_marker(starttime, endtime, st_id)
-            
+
     def add_marker(self, starttime, endtime, stringtable_index):
         self.markers.append([starttime, endtime, stringtable_index])
 
-    def add_string(self, string):
-        if string in self.stringarray_positions:
-            return self.stringarray_positions[string]
-        else:
-            result = len(self.stringarray)
+    def add_string(self, string: object) -> int:
+        string = str(string)
+        nidx = len(self.stringarray)
+        if (idx := self.stringarray_positions.setdefault(string, nidx)) == nidx:
             self.stringarray.append(string)
-            self.stringarray_positions[string] = result
-            return result
-        
+        return idx
+
     def add_stack(self, stack, categories):
         #stack is a list of frametable indexes
         if not stack:
@@ -531,8 +525,8 @@ class Thread:
                 self.stacktable.append([top, rest_index, top_category])
                 self.stacktable_positions[key] = result
                 return result
-            
-    def add_func(self, func, file, line, category, libindex):
+
+    def add_func(self, func, file, line, category, libindex) -> int:
         key = (func, file, line, category)
         if key in self.funtable_positions:
             return self.funtable_positions[key]
@@ -545,23 +539,20 @@ class Thread:
             self.functable.append([stringtable_index_func, stringtable_index_file, line, resource_index, is_python])
             self.funtable_positions[key] = result
             return result
-            
-    def add_frame(self, funcname, line, file, category, libindex, addr):
-        key = (funcname, line, category)
-        if key in self.frametable_positions:
-            return self.frametable_positions[key]
-        else:
+
+    def add_frame(self, funcname: str, line: int, file: str, category, libindex, addr) -> int:
+        nidx = len(self.frametable_positions)
+        idx = self.frametable_positions.setdefault((funcname, file, line, category), nidx)
+        if idx == nidx:
             functable_index = self.add_func(funcname, file, line, category, libindex)
-            frametable_index = len(self.frametable)
             nativesymbol_index = self.add_nativesymbol(libindex, funcname, addr)
-            self.frametable.append([functable_index, nativesymbol_index, line, category])
-            self.frametable_positions[key] = frametable_index
-            return frametable_index
-        
+            self.frametable.append((functable_index, nativesymbol_index, line, category))
+        return idx
+
     def add_sample(self, stackindex, time):
         self.samples.append([stackindex, time]) # stackindex, ms since starttime
-    
-    def add_nativesymbol(self, libindex, funcname, addr):
+
+    def add_nativesymbol(self, libindex, funcname, addr) -> int:
         if libindex == -1:
             return -1
         key = (libindex, funcname, addr)
@@ -573,7 +564,7 @@ class Thread:
             self.nativesymbols.append([libindex, funcname_index, addr])
             self.nativesymbols_positions[key] = nativesymbol_index
             return nativesymbol_index
-    
+
     def add_resource(self, libindex, stringindex):
         if libindex == -1:
             return -1
@@ -585,7 +576,7 @@ class Thread:
             self.resourcetable.append([libindex, stringindex])
             self.resourcetable_positions[key] = resource_index
             return resource_index
-    
+
     def dump_thread(self):
         thread = {}
         thread["name"] = self.name
@@ -607,7 +598,7 @@ class Thread:
         thread["samples"] = self.dump_samples()
         thread["stringArray"] = self.dump_stringarray()
         return thread
-    
+
     def dump_markers(self):
         markers = {}
         markers["data"] = [{"type": "PyPyLog"} for _ in self.markers]
@@ -618,7 +609,7 @@ class Thread:
         markers["category"] = [7 for _ in self.markers]
         markers["length"] = len(self.markers)
         return markers
- 
+
     def dump_resourcetable(self):
         resourcetable = {}
         resourcetable["lib"] = [nsym[0] for nsym in self.resourcetable]
@@ -627,7 +618,7 @@ class Thread:
         resourcetable["type"] = [1 for _ in self.resourcetable]
         resourcetable["length"] = len(self.resourcetable)
         return resourcetable
-    
+
     def dump_nativesymbols(self):
         nativesymbols = {}
         nativesymbols["libIndex"] = [nsym[0]for nsym in self.nativesymbols]
@@ -651,7 +642,7 @@ class Thread:
         ftable["column"] = [None for _ in self.frametable]
         ftable["length"] = len(self.frametable)
         return ftable
-    
+
     def get_frametable_lines(self):
         lines = []
         for frame in self.frametable:
@@ -660,7 +651,7 @@ class Thread:
             else:
                 lines.append(int(frame[2]))
         return lines
-    
+
     def dump_functable(self):
         ftable = {}
         ftable["isJS"] = [func[4] for func in self.functable]
@@ -682,7 +673,7 @@ class Thread:
         stable["prefix"] = [stack[1] for stack in self.stacktable]
         stable["length"] = len(self.stacktable)
         return stable
-    
+
     def dump_samples(self):
         samples = {}
         samples["stack"] = [sample[0] for sample in self.samples]
@@ -692,25 +683,20 @@ class Thread:
         samples["weight"] = None
         samples["length"] = len(self.samples)
         return samples
-    
+
     def dump_stringarray(self):
-        return [str(string) for string in self.stringarray]
-    
+        return self.stringarray[:]
+
     def get_processed_filelines(self):
         linenumbers = []
         filenames = []
-        for func in self.functable:
-            if self.stringarray[func[1]] == "-":
-                linenumbers.append(None)
-            elif func[2] == -1:
-                linenumbers.append(None)
-            else:
-                linenumbers.append(int(func[2]))
-
-        for func in self.functable:
-            if self.stringarray[func[1]] == "-":
+        dash_index = self.stringarray_positions.get("-", -1)
+        for _, filename_index, line, *_ in self.functable:
+            if filename_index == dash_index:
                 filenames.append(None)
+                linenumbers.append(None)
             else:
-                filenames.append(func[1])
-        
+                filenames.append(filename_index)
+                linenumbers.append(None if line == -1 else int(line))
+
         return linenumbers, filenames

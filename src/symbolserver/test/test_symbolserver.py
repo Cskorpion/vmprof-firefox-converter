@@ -37,6 +37,7 @@ def test_get_bytecode():
     code = compile(content, path, "exec")
     instr = get_bc_instruction(code, "get_name", 6, 0)
 
+    assert instr is not None
     assert instr.offset == 0
     assert instr.argval == "self"
     assert instr.opname == "LOAD_FAST"
