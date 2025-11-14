@@ -1,6 +1,6 @@
 [project]
 name = "vmprof-firefox-converter"
-version = "0.1.1"
+version = "0.1.2"
 description = "Firefox-Profiler as UI for VMProf"
 authors = [
     {name = "Christoph Jung"},
