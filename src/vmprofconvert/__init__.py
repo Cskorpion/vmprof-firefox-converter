@@ -188,7 +188,7 @@ class Converter:
                     categories.append(CATEGORY_NATIVE)
                     frames.append(self.add_native_frame(thread, stack_info[j]))
                 elif isinstance(stack_info[j], int):
-                    categories.append(category_dict[addr_info[0]])
+                    categories.append(category_dict.get(addr_info[0], CATEGORY_PYTHON))
                     frames.append(self.add_vmprof_frame(addr_info, thread, stack_info, stats.profile_lines,categories[-1], j))
 
             stackindex = thread.add_stack(frames, categories)
@@ -419,6 +419,9 @@ class Converter:
                 ]
             }
         )
+        # Firefox Profiler uses the grey category when call-node categories conflict.
+        categories.append({"name": "Other", "color": "grey",
+                           "subcategories": ["Other"]})
         return categories
 
     def dump_counters(self):

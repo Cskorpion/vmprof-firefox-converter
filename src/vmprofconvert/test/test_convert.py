@@ -828,3 +828,28 @@ def test_timestamps():
     # 451.370060965 - 451.359228 # sample timestamp - start timestamp
     assert 30430.785875 - 0.00001 < samples[-1][1] < 30430.785875 + 0.00001
     # 481.790013875 - 451.359228 
+
+
+def test_default_category_for_conflicting_call_nodes():
+    categories = Converter().dump_categories()
+    defaults = [c for c in categories if c["color"] == "grey"]
+    assert len(defaults) == 1
+    assert defaults[0]["subcategories"] == ["Other"]
+
+
+@pytest.mark.parametrize("prefix, category", [
+    ("py", CATEGORY_PYTHON),
+    ("rb", CATEGORY_PYTHON),
+    ("unknown", CATEGORY_PYTHON),
+    ("n", CATEGORY_NATIVE),
+])
+def test_frame_prefix_category(prefix, category):
+    stats = Dummystats([([1], 1, 0, 0)])
+    stats.profile_lines = False
+    stats.get_addr_info = lambda addr: (prefix, "burn", 2, "example.src")
+    converter = Converter()
+    converter.walk_samples(stats)
+    thread = converter.threads[0]
+    assert "burn" in thread.stringarray
+    assert "example.src" in thread.stringarray
+    assert thread.dump_frametable()["category"] == [category]
